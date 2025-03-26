@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,13 +7,19 @@ import {
   ScrollView,
   Image,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch } from 'react-redux';
+import { signOut } from 'firebase/auth';
+import { auth, db } from '../firebase/firebaseConfig';
+import { doc, getDoc } from 'firebase/firestore';
 
 const ProfileScreen = ({ navigation }) => {
   const [profileImage, setProfileImage] = useState(require('../../assets/profile-placeholder.png'));
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true);
   const dispatch = useDispatch();
 
   // Dummy sipariş geçmişi verileri
@@ -51,8 +57,46 @@ const ProfileScreen = ({ navigation }) => {
     }
   ];
 
-  const handleLogout = () => {
-    navigation.replace('Login');
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          const userDocRef = doc(db, "users", currentUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          
+          if (userDoc.exists()) {
+            setUserData(userDoc.data());
+          } else {
+            // Kullanıcı verisi bulunamadı, temel bilgileri auth'tan al
+            setUserData({
+              name: currentUser.displayName || 'Kullanıcı',
+              email: currentUser.email,
+              phone: ''
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Kullanıcı verisi alınamadı:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchUserData();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      setLoading(true);
+      await signOut(auth);
+      // Firebase oturum kapatma başarılı olduktan sonra
+      // navigation otomatik olarak giriş ekranına yönlendirecek
+    } catch (error) {
+      Alert.alert('Çıkış Hatası', 'Çıkış yapılırken bir hata oluştu. Lütfen tekrar deneyin.');
+      console.error("Çıkış hatası:", error);
+      setLoading(false);
+    }
   };
 
   const pickImage = async () => {
@@ -131,82 +175,90 @@ const ProfileScreen = ({ navigation }) => {
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={pickImage}>
-          <Image 
-            source={profileImage} 
-            style={styles.headerLogo}
-            resizeMode="cover"
-          />
-          <View style={styles.changePhotoButton}>
-            <Text style={styles.changePhotoText}>Değiştir</Text>
-          </View>
-        </TouchableOpacity>
-        <View style={styles.userInfo}>
-          <Text style={styles.name}>Test Kullanıcı</Text>
-          <Text style={styles.email}>test@test.com</Text>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2C3E50" />
         </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Hesap Bilgileri</Text>
-        <View style={styles.accountInfoItem}>
-          <Text style={styles.accountInfoLabel}>Ad Soyad:</Text>
-          <Text style={styles.accountInfoValue}>Test Kullanıcı</Text>
-        </View>
-        <View style={styles.accountInfoItem}>
-          <Text style={styles.accountInfoLabel}>Email:</Text>
-          <Text style={styles.accountInfoValue}>test@test.com</Text>
-        </View>
-        <View style={styles.accountInfoItem}>
-          <Text style={styles.accountInfoLabel}>Telefon:</Text>
-          <Text style={styles.accountInfoValue}>+90 5XX XXX XX XX</Text>
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Sipariş Geçmişi</Text>
-        {orderHistory.map((order) => (
-          <View key={order.id} style={styles.orderItem}>
-            <View style={styles.orderHeader}>
-              <View>
-                <Text style={styles.orderId}>Sipariş #{order.id}</Text>
-                <Text style={styles.orderDate}>{order.date}</Text>
+      ) : (
+        <>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={pickImage}>
+              <Image 
+                source={profileImage} 
+                style={styles.headerLogo}
+                resizeMode="cover"
+              />
+              <View style={styles.changePhotoButton}>
+                <Text style={styles.changePhotoText}>Değiştir</Text>
               </View>
-              <View style={styles.orderStatusContainer}>
-                <Text style={styles.orderStatus}>{order.status}</Text>
-              </View>
-            </View>
-            
-            <View style={styles.orderDetails}>
-              {order.items.map((item, index) => (
-                <View key={index} style={styles.orderItemRow}>
-                  <Text style={styles.orderItemName}>
-                    {item.quantity}x {item.name}
-                  </Text>
-                  <Text style={styles.orderItemPrice}>{item.price * item.quantity} ₺</Text>
-                </View>
-              ))}
-              <View style={styles.orderTotal}>
-                <Text style={styles.orderTotalLabel}>Toplam:</Text>
-                <Text style={styles.orderTotalValue}>{order.total} ₺</Text>
-              </View>
-            </View>
-            
-            <TouchableOpacity 
-              style={styles.reorderButton}
-              onPress={() => handleReorder(order)}
-            >
-              <Ionicons name="refresh-outline" size={14} color="#FFFFFF" />
-              <Text style={styles.reorderButtonText}> Tekrar Sipariş Ver</Text>
             </TouchableOpacity>
+            <View style={styles.userInfo}>
+              <Text style={styles.name}>{userData?.name || 'Kullanıcı'}</Text>
+              <Text style={styles.email}>{userData?.email || ''}</Text>
+            </View>
           </View>
-        ))}
-      </View>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutButtonText}>Çıkış Yap</Text>
-      </TouchableOpacity>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Hesap Bilgileri</Text>
+            <View style={styles.accountInfoItem}>
+              <Text style={styles.accountInfoLabel}>Ad Soyad:</Text>
+              <Text style={styles.accountInfoValue}>{userData?.name || 'Kullanıcı'}</Text>
+            </View>
+            <View style={styles.accountInfoItem}>
+              <Text style={styles.accountInfoLabel}>Email:</Text>
+              <Text style={styles.accountInfoValue}>{userData?.email || ''}</Text>
+            </View>
+            <View style={styles.accountInfoItem}>
+              <Text style={styles.accountInfoLabel}>Telefon:</Text>
+              <Text style={styles.accountInfoValue}>{userData?.phone || '+90 5XX XXX XX XX'}</Text>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Sipariş Geçmişi</Text>
+            {orderHistory.map((order) => (
+              <View key={order.id} style={styles.orderItem}>
+                <View style={styles.orderHeader}>
+                  <View>
+                    <Text style={styles.orderId}>Sipariş #{order.id}</Text>
+                    <Text style={styles.orderDate}>{order.date}</Text>
+                  </View>
+                  <View style={styles.orderStatusContainer}>
+                    <Text style={styles.orderStatus}>{order.status}</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.orderDetails}>
+                  {order.items.map((item, index) => (
+                    <View key={index} style={styles.orderItemRow}>
+                      <Text style={styles.orderItemName}>
+                        {item.quantity}x {item.name}
+                      </Text>
+                      <Text style={styles.orderItemPrice}>{item.price * item.quantity} ₺</Text>
+                    </View>
+                  ))}
+                  <View style={styles.orderTotal}>
+                    <Text style={styles.orderTotalLabel}>Toplam:</Text>
+                    <Text style={styles.orderTotalValue}>{order.total} ₺</Text>
+                  </View>
+                </View>
+                
+                <TouchableOpacity 
+                  style={styles.reorderButton}
+                  onPress={() => handleReorder(order)}
+                >
+                  <Ionicons name="refresh-outline" size={14} color="#FFFFFF" />
+                  <Text style={styles.reorderButtonText}> Tekrar Sipariş Ver</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutButtonText}>Çıkış Yap</Text>
+          </TouchableOpacity>
+        </>
+      )}
     </ScrollView>
   );
 };
@@ -382,6 +434,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 50,
   },
 });
 

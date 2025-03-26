@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Provider } from 'react-redux';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { configureStore } from '@reduxjs/toolkit';
 import { Ionicons } from '@expo/vector-icons';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { auth } from './src/firebase/firebaseConfig';
+import { ActivityIndicator, View } from 'react-native';
 
 // Ekranları içe aktaralım
 import LoginScreen from './src/screens/LoginScreen';
@@ -117,6 +120,66 @@ function TabNavigator() {
 }
 
 export default function App() {
+  const [initializing, setInitializing] = useState(true);
+  const [user, setUser] = useState(null);
+
+  // Uygulama başladığında çıkış yap (her zaman login ekranından başlamak için)
+  useEffect(() => {
+    const handleInitialLogout = async () => {
+      try {
+        await signOut(auth);
+        console.log("Uygulama başlangıcında çıkış yapıldı");
+      } catch (error) {
+        console.error("Çıkış hatası:", error);
+      } finally {
+        setInitializing(false);
+      }
+    };
+    
+    handleInitialLogout();
+  }, []);
+
+  // Firebase auth state değişikliklerini dinle
+  useEffect(() => {
+    let isMounted = true;
+    
+    const checkAuthState = async () => {
+      try {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+          if (isMounted) {
+            setUser(user);
+          }
+        });
+        
+        // Cleanup subscription
+        return () => {
+          unsubscribe();
+        };
+      } catch (error) {
+        console.log("Auth state dinleme hatası:", error);
+      }
+    };
+    
+    const authSubscription = checkAuthState();
+    
+    // Cleanup on unmount
+    return () => {
+      isMounted = false;
+      if (authSubscription && typeof authSubscription.then === 'function') {
+        authSubscription.then(unsubscribe => unsubscribe && unsubscribe());
+      }
+    };
+  }, []);
+
+  // Yükleniyor durumu
+  if (initializing) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#2C3E50" />
+      </View>
+    );
+  }
+
   return (
     <Provider store={store}>
       <NavigationContainer>

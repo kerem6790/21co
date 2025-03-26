@@ -9,11 +9,14 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../firebase/firebaseConfig';
 
 const PaymentScreen = ({ navigation, route }) => {
   const { total } = route.params;
   const dispatch = useDispatch();
+  const cart = useSelector((state) => state.cart);
   
   const [cardNumber, setCardNumber] = useState('');
   const [expDate, setExpDate] = useState('');
@@ -75,32 +78,89 @@ const PaymentScreen = ({ navigation, route }) => {
     return true;
   };
 
-  const handlePayment = () => {
+  const handlePayment = async () => {
     if (!validateForm()) return;
     
     setLoading(true);
     
-    // Normalde burada backend'e ödeme isteği gönderilir
-    // Şimdilik simüle edelim
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      // Kullanıcı giriş yapmış mı kontrol et
+      const currentUser = auth.currentUser;
+      console.log("[SİPARİŞ] Kullanıcı durumu:", currentUser ? "Giriş yapılmış" : "Giriş yapılmamış");
       
-      // Ödeme başarılı olduğunda sepeti temizle
-      // (Yeni bir reducer action'ı ekleyebilirsiniz veya sepeti sıfırlayabilirsiniz)
+      if (!currentUser) {
+        Alert.alert('Hata', 'Sipariş vermek için giriş yapmalısınız.');
+        setLoading(false);
+        return;
+      }
+      
+      // Sepet içeriğini kontrol et
+      console.log("[SİPARİŞ] Sepet durumu:", cart.items.length > 0 ? `${cart.items.length} ürün var` : "Sepet boş");
+      if (cart.items.length === 0) {
+        Alert.alert('Hata', 'Sepetinizde ürün bulunmamaktadır.');
+        setLoading(false);
+        return;
+      }
+      
+      // Sipariş verisi oluştur
+      const orderData = {
+        userId: currentUser.uid,
+        items: cart.items,
+        totalPrice: total,
+        status: 'pending',
+        paymentInfo: {
+          cardLastFour: cardNumber.replace(/\s/g, '').slice(-4),
+          cardHolderName: name,
+        },
+        timestamp: serverTimestamp()
+      };
+      
+      console.log("[SİPARİŞ] Sipariş verisi hazırlandı:", JSON.stringify({
+        userId: orderData.userId,
+        itemCount: orderData.items.length,
+        total: orderData.totalPrice,
+        status: orderData.status
+      }));
+      
+      // Firestore'a yazma işlemi başlat
+      console.log("[SİPARİŞ] Firestore yazma işlemi başlatılıyor...");
+      
+      // Orders koleksiyonuna belgeyi ekle
+      const orderRef = await addDoc(collection(db, 'orders'), orderData);
+      
+      console.log("[SİPARİŞ] Başarıyla kaydedildi! Sipariş ID:", orderRef.id);
+      
+      // Sepeti temizle
       dispatch({ type: 'CLEAR_CART' });
+      console.log("[SİPARİŞ] Sepet temizlendi");
       
       // Başarılı mesajını göster
+      setLoading(false);
       Alert.alert(
         'Ödeme Başarılı',
-        'Siparişiniz alındı. Teşekkür ederiz!',
+        'Siparişiniz alındı. Sipariş numaranız: ' + orderRef.id,
         [
           {
             text: 'Tamam',
-            onPress: () => navigation.navigate('MenuTab'),
+            onPress: () => navigation.navigate('Main'),
           },
         ]
       );
-    }, 2000);
+    } catch (error) {
+      console.error("[SİPARİŞ HATASI]", error.code, error.message);
+      console.error("[SİPARİŞ HATASI] Tam hata:", JSON.stringify(error));
+      
+      setLoading(false);
+      
+      let errorMessage = 'Siparişiniz oluşturulurken bir hata oluştu.';
+      if (error.code === 'permission-denied') {
+        errorMessage += ' Yetki hatası: Firebase kurallarını kontrol edin.';
+      } else if (error.code === 'unavailable') {
+        errorMessage += ' Bağlantı hatası: İnternet bağlantınızı kontrol edin.';
+      }
+      
+      Alert.alert('Sipariş Hatası', errorMessage);
+    }
   };
 
   return (

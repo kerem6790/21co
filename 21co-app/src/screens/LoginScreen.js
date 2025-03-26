@@ -7,17 +7,72 @@ import {
   StyleSheet,
   Alert,
   Image,
+  ActivityIndicator,
 } from 'react-native';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../firebase/firebaseConfig';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    if (email === '1' && password === '1') {
-      navigation.replace('Main');
-    } else {
-      Alert.alert('Hata', 'Geçersiz kullanıcı adı veya şifre');
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Hata', 'Lütfen email ve şifre alanlarını doldurun.');
+      return;
+    }
+
+    setLoading(true);
+    
+    try {
+      console.log("Firebase ile giriş yapılıyor...");
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      console.log("Giriş başarılı!");
+      
+      // Kullanıcı bilgileri doğru, ana sayfaya yönlendir
+      setLoading(false);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Main' }]
+      });
+      
+    } catch (error) {
+      setLoading(false);
+      console.error("Login error:", error.code, error.message);
+      
+      let errorMessage = 'Giriş yapılırken bir hata oluştu.';
+      
+      switch(error.code) {
+        case 'auth/invalid-email':
+          errorMessage = 'Geçersiz email formatı.';
+          break;
+        case 'auth/user-disabled':
+          errorMessage = 'Bu kullanıcı hesabı devre dışı bırakılmış.';
+          break;
+        case 'auth/user-not-found':
+          errorMessage = 'Bu email ile kayıtlı kullanıcı bulunamadı.';
+          break;
+        case 'auth/wrong-password':
+          errorMessage = 'Hatalı şifre.';
+          break;
+        case 'auth/invalid-credential':
+          errorMessage = 'Geçersiz kullanıcı bilgileri. Email veya şifre hatalı.';
+          break;
+        case 'auth/invalid-password':
+          errorMessage = 'Şifre geçersiz veya eksik.';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Çok fazla başarısız giriş denemesi. Lütfen daha sonra tekrar deneyin.';
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = 'Ağ hatası. İnternet bağlantınızı kontrol edin.';
+          break;
+        default:
+          errorMessage = `Giriş hatası: ${error.message}`;
+      }
+      
+      Alert.alert('Giriş Başarısız', errorMessage);
     }
   };
 
@@ -32,10 +87,12 @@ const LoginScreen = ({ navigation }) => {
       <View style={styles.formContainer}>
         <TextInput
           style={styles.input}
-          placeholder="Kullanıcı Adı"
+          placeholder="Email"
           value={email}
           onChangeText={setEmail}
+          keyboardType="email-address"
           autoCapitalize="none"
+          editable={!loading}
         />
         <TextInput
           style={styles.input}
@@ -43,14 +100,25 @@ const LoginScreen = ({ navigation }) => {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          editable={!loading}
         />
-        <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-          <Text style={styles.loginButtonText}>Giriş Yap</Text>
+        
+        <TouchableOpacity 
+          style={[styles.loginButton, loading && styles.loginButtonDisabled]} 
+          onPress={handleLogin}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <Text style={styles.loginButtonText}>Giriş Yap</Text>
+          )}
         </TouchableOpacity>
         
         <TouchableOpacity
           style={styles.registerLink}
           onPress={() => navigation.navigate('Register')}
+          disabled={loading}
         >
           <Text style={styles.registerLinkText}>
             Hesabınız yok mu? Kaydolun
@@ -105,6 +173,9 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
+  },
+  loginButtonDisabled: {
+    backgroundColor: '#7F8C8D',
   },
   loginButtonText: {
     color: '#FFFFFF',

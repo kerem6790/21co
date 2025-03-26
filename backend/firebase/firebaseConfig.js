@@ -4,11 +4,11 @@ import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: "AIzaSyB3sRLZq50DyO4NMuBIkR2ORq5XXWl8YuQ",
-  authDomain: "SENİN_PROJE.firebaseapp.com",
-  projectId: "SENİN_PROJE_ID",
-  storageBucket: "SENİN_PROJE.appspot.com",
-  messagingSenderId: "XXXXXXX",
-  appId: "APP_ID"
+  authDomain: "21co.firebaseapp.com",
+  projectId: "co-7aa0b",
+  storageBucket: "21co.appspot.com",
+  messagingSenderId: "510782989783",
+  appId: "1:510782989783:web:1485919b80d809d7e1d792"
 };
 
 const app = initializeApp(firebaseConfig);
