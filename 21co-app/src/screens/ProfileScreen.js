@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,24 +6,52 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
+  Alert,
 } from 'react-native';
 import { useSelector } from 'react-redux';
+import * as ImagePicker from 'expo-image-picker';
 
 const ProfileScreen = ({ navigation }) => {
-  const cart = useSelector((state) => state.cart);
+  const [profileImage, setProfileImage] = useState(require('../../assets/profile-placeholder.png'));
 
   const handleLogout = () => {
     navigation.replace('Login');
   };
 
+  const pickImage = async () => {
+    // Kamera iznini kontrol et
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (status !== 'granted') {
+      Alert.alert('İzin Gerekli', 'Fotoğraflarınıza erişmek için izin gereklidir.');
+      return;
+    }
+
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+
+    if (!result.canceled) {
+      setProfileImage({ uri: result.assets[0].uri });
+    }
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Image 
-          source={require('../../assets/profile-placeholder.png')} 
-          style={styles.headerLogo}
-          resizeMode="contain"
-        />
+        <TouchableOpacity onPress={pickImage}>
+          <Image 
+            source={profileImage} 
+            style={styles.headerLogo}
+            resizeMode="cover"
+          />
+          <View style={styles.changePhotoButton}>
+            <Text style={styles.changePhotoText}>Değiştir</Text>
+          </View>
+        </TouchableOpacity>
         <View style={styles.userInfo}>
           <Text style={styles.name}>Test Kullanıcı</Text>
           <Text style={styles.email}>test@test.com</Text>
@@ -31,20 +59,18 @@ const ProfileScreen = ({ navigation }) => {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Sepetim</Text>
-        {cart.items.map((item) => (
-          <View key={item.id} style={styles.cartItem}>
-            <Image source={item.image} style={styles.cartItemImage} />
-            <View style={styles.cartItemInfo}>
-              <Text style={styles.itemName}>{item.name}</Text>
-              <Text style={styles.itemQuantity}>x{item.quantity}</Text>
-              <Text style={styles.itemPrice}>{item.price * item.quantity} ₺</Text>
-            </View>
-          </View>
-        ))}
-        <View style={styles.totalContainer}>
-          <Text style={styles.totalText}>Toplam:</Text>
-          <Text style={styles.totalAmount}>{cart.total} ₺</Text>
+        <Text style={styles.sectionTitle}>Hesap Bilgileri</Text>
+        <View style={styles.accountInfoItem}>
+          <Text style={styles.accountInfoLabel}>Ad Soyad:</Text>
+          <Text style={styles.accountInfoValue}>Test Kullanıcı</Text>
+        </View>
+        <View style={styles.accountInfoItem}>
+          <Text style={styles.accountInfoLabel}>Email:</Text>
+          <Text style={styles.accountInfoValue}>test@test.com</Text>
+        </View>
+        <View style={styles.accountInfoItem}>
+          <Text style={styles.accountInfoLabel}>Telefon:</Text>
+          <Text style={styles.accountInfoValue}>+90 5XX XXX XX XX</Text>
         </View>
       </View>
 
@@ -70,9 +96,24 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E0E0E0',
   },
   headerLogo: {
-    width: 60,
-    height: 60,
+    width: 80,
+    height: 80,
     marginRight: 15,
+    borderRadius: 40,
+  },
+  changePhotoButton: {
+    position: 'absolute',
+    bottom: 0,
+    right: 15,
+    backgroundColor: 'rgba(44, 62, 80, 0.7)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  changePhotoText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
   userInfo: {
     flex: 1,
@@ -91,6 +132,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     marginTop: 20,
     padding: 15,
+    marginHorizontal: 10,
+    borderRadius: 8,
   },
   sectionTitle: {
     fontSize: 18,
@@ -98,55 +141,21 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     marginBottom: 15,
   },
-  cartItem: {
+  accountInfoItem: {
     flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
-  cartItemImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    marginRight: 10,
-  },
-  cartItemInfo: {
-    flex: 1,
-  },
-  itemName: {
+  accountInfoLabel: {
     fontSize: 16,
-    color: '#2C3E50',
-    marginBottom: 4,
-  },
-  itemQuantity: {
-    fontSize: 14,
     color: '#7F8C8D',
-    marginBottom: 4,
   },
-  itemPrice: {
+  accountInfoValue: {
     fontSize: 16,
-    color: '#27AE60',
-    fontWeight: '600',
-  },
-  totalContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 15,
-    paddingTop: 15,
-    borderTopWidth: 2,
-    borderTopColor: '#E0E0E0',
-  },
-  totalText: {
-    fontSize: 18,
-    fontWeight: 'bold',
     color: '#2C3E50',
-  },
-  totalAmount: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#27AE60',
+    fontWeight: '500',
   },
   logoutButton: {
     backgroundColor: '#E74C3C',

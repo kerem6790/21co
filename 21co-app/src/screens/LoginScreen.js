@@ -47,6 +47,15 @@ const LoginScreen = ({ navigation }) => {
         <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
           <Text style={styles.loginButtonText}>Giriş Yap</Text>
         </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.registerLink}
+          onPress={() => navigation.navigate('Register')}
+        >
+          <Text style={styles.registerLinkText}>
+            Hesabınız yok mu? Kaydolun
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -101,6 +110,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  registerLink: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  registerLinkText: {
+    color: '#2C3E50',
+    fontSize: 14,
   },
 });
 

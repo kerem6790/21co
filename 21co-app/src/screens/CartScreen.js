@@ -6,11 +6,39 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
+  Alert,
 } from 'react-native';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { Ionicons } from '@expo/vector-icons';
 
 const CartScreen = ({ navigation }) => {
   const cart = useSelector((state) => state.cart);
+  const dispatch = useDispatch();
+
+  const handleRemoveItem = (item) => {
+    dispatch({ type: 'REMOVE_FROM_CART', payload: { id: item.id } });
+  };
+
+  const handleUpdateQuantity = (item, quantity) => {
+    if (quantity <= 0) {
+      // Miktar 0 veya daha az olduğunda ürünü sepetten kaldır
+      handleRemoveItem(item);
+      return;
+    }
+    dispatch({ 
+      type: 'UPDATE_QUANTITY', 
+      payload: { id: item.id, quantity } 
+    });
+  };
+
+  const handleCheckout = () => {
+    if (cart.items.length === 0) {
+      Alert.alert('Hata', 'Sepetinizde ürün bulunmamaktadır.');
+      return;
+    }
+    
+    navigation.navigate('Payment', { total: cart.total });
+  };
 
   return (
     <ScrollView style={styles.container}>
@@ -33,16 +61,43 @@ const CartScreen = ({ navigation }) => {
                 <Image source={item.image} style={styles.cartItemImage} />
                 <View style={styles.cartItemInfo}>
                   <Text style={styles.itemName}>{item.name}</Text>
-                  <Text style={styles.itemQuantity}>x{item.quantity}</Text>
                   <Text style={styles.itemPrice}>{item.price * item.quantity} ₺</Text>
                 </View>
+                
+                <View style={styles.quantityControl}>
+                  <TouchableOpacity
+                    style={styles.quantityButton}
+                    onPress={() => handleUpdateQuantity(item, item.quantity - 1)}
+                  >
+                    <Ionicons name="remove" size={18} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  
+                  <Text style={styles.quantityText}>{item.quantity}</Text>
+                  
+                  <TouchableOpacity
+                    style={styles.quantityButton}
+                    onPress={() => handleUpdateQuantity(item, item.quantity + 1)}
+                  >
+                    <Ionicons name="add" size={18} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+                
+                <TouchableOpacity 
+                  style={styles.removeButton}
+                  onPress={() => handleRemoveItem(item)}
+                >
+                  <Ionicons name="trash-outline" size={22} color="#E74C3C" />
+                </TouchableOpacity>
               </View>
             ))}
             <View style={styles.totalContainer}>
               <Text style={styles.totalText}>Toplam:</Text>
               <Text style={styles.totalAmount}>{cart.total} ₺</Text>
             </View>
-            <TouchableOpacity style={styles.checkoutButton}>
+            <TouchableOpacity 
+              style={styles.checkoutButton}
+              onPress={handleCheckout}
+            >
               <Text style={styles.checkoutButtonText}>Siparişi Tamamla</Text>
             </TouchableOpacity>
           </>
@@ -56,7 +111,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',
-    paddingTop: 30,
+    paddingTop: 30, // Statü çubuğu için ek padding
   },
   header: {
     flexDirection: 'row',
@@ -92,7 +147,7 @@ const styles = StyleSheet.create({
   cartItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
@@ -110,15 +165,34 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     marginBottom: 4,
   },
-  itemQuantity: {
-    fontSize: 14,
-    color: '#7F8C8D',
-    marginBottom: 4,
-  },
   itemPrice: {
     fontSize: 16,
     color: '#2C3E50',
     fontWeight: '600',
+  },
+  quantityControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  quantityButton: {
+    backgroundColor: '#2C3E50',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quantityText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    marginHorizontal: 10,
+    minWidth: 20,
+    textAlign: 'center',
+  },
+  removeButton: {
+    padding: 8,
   },
   totalContainer: {
     flexDirection: 'row',

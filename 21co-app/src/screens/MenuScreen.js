@@ -80,12 +80,6 @@ const MenuScreen = ({ navigation }) => {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
       />
-      <TouchableOpacity
-        style={styles.profileButton}
-        onPress={() => navigation.navigate('Profile')}
-      >
-        <Text style={styles.profileButtonText}>Profil</Text>
-      </TouchableOpacity>
     </View>
   );
 };

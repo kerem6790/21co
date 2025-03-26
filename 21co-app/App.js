@@ -11,6 +11,8 @@ import LoginScreen from './src/screens/LoginScreen';
 import MenuScreen from './src/screens/MenuScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import CartScreen from './src/screens/CartScreen';
+import RegisterScreen from './src/screens/RegisterScreen';
+import PaymentScreen from './src/screens/PaymentScreen';
 
 // Redux store'u oluşturalım
 const store = configureStore({
@@ -31,6 +33,34 @@ const store = configureStore({
             items: [...state.items, { ...action.payload, quantity: 1 }],
             total: state.items.reduce((total, item) => total + (item.price * item.quantity), 0) + action.payload.price
           };
+        
+        case 'REMOVE_FROM_CART':
+          const filteredItems = state.items.filter(item => item.id !== action.payload.id);
+          return {
+            ...state,
+            items: filteredItems,
+            total: filteredItems.reduce((total, item) => total + (item.price * item.quantity), 0)
+          };
+        
+        case 'UPDATE_QUANTITY':
+          const updatedItems = state.items.map(item => {
+            if (item.id === action.payload.id) {
+              return { ...item, quantity: action.payload.quantity };
+            }
+            return item;
+          });
+          return {
+            ...state,
+            items: updatedItems,
+            total: updatedItems.reduce((total, item) => total + (item.price * item.quantity), 0)
+          };
+        
+        case 'CLEAR_CART':
+          return {
+            items: [],
+            total: 0
+          };
+          
         default:
           return state;
       }
@@ -91,9 +121,23 @@ export default function App() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
+            name="Register"
+            component={RegisterScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
             name="Main"
             component={TabNavigator}
             options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Payment"
+            component={PaymentScreen}
+            options={{ 
+              title: 'Ödeme',
+              headerBackTitle: 'Geri',
+              headerTintColor: '#FFFFFF'
+            }}
           />
         </Stack.Navigator>
       </NavigationContainer>
