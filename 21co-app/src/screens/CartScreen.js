@@ -37,7 +37,20 @@ const CartScreen = ({ navigation }) => {
       return;
     }
     
-    navigation.navigate('Payment', { total: cart.total });
+    Alert.alert(
+      'Sipariş Onayı',
+      'Siparişinizi onaylıyor musunuz?',
+      [
+        {
+          text: 'İptal',
+          style: 'cancel'
+        },
+        {
+          text: 'Onaylıyorum',
+          onPress: () => navigation.navigate('Payment', { total: cart.total })
+        }
+      ]
+    );
   };
 
   return (

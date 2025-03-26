@@ -8,11 +8,48 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { useSelector } from 'react-redux';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
+import { useDispatch } from 'react-redux';
 
 const ProfileScreen = ({ navigation }) => {
   const [profileImage, setProfileImage] = useState(require('../../assets/profile-placeholder.png'));
+  const dispatch = useDispatch();
+
+  // Dummy sipariş geçmişi verileri
+  const orderHistory = [
+    {
+      id: 'O100123',
+      date: '25 Mart 2025',
+      total: 140,
+      status: 'Teslim Edildi',
+      items: [
+        { name: 'Türk Kahvesi', quantity: 2, price: 45 },
+        { name: 'Latte', quantity: 1, price: 50 }
+      ]
+    },
+    {
+      id: 'O100122',
+      date: '22 Mart 2025',
+      total: 110,
+      status: 'Teslim Edildi',
+      items: [
+        { name: 'Espresso', quantity: 2, price: 35 },
+        { name: 'Americano', quantity: 1, price: 40 }
+      ]
+    },
+    {
+      id: 'O100118',
+      date: '18 Mart 2025',
+      total: 95,
+      status: 'Teslim Edildi',
+      items: [
+        { name: 'Türk Kahvesi', quantity: 1, price: 45 },
+        { name: 'Espresso', quantity: 1, price: 35 },
+        { name: 'Black Eye Kahve', quantity: 1, price: 15 }
+      ]
+    }
+  ];
 
   const handleLogout = () => {
     navigation.replace('Login');
@@ -37,6 +74,59 @@ const ProfileScreen = ({ navigation }) => {
     if (!result.canceled) {
       setProfileImage({ uri: result.assets[0].uri });
     }
+  };
+
+  const handleReorder = (order) => {
+    // Sepeti temizle
+    dispatch({ type: 'CLEAR_CART' });
+    
+    // Siparişteki tüm ürünleri sepete ekle
+    order.items.forEach(item => {
+      // Ürün adına göre doğru resmi seç
+      let imageSource;
+      const lowerCaseName = item.name.toLowerCase();
+      
+      if (lowerCaseName.includes('türk')) {
+        imageSource = require('../../assets/turkish coffe.jpeg');
+      } else if (lowerCaseName.includes('espresso')) {
+        imageSource = require('../../assets/espresso.jpeg');
+      } else if (lowerCaseName.includes('latte')) {
+        imageSource = require('../../assets/latte.jpeg');
+      } else if (lowerCaseName.includes('americano')) {
+        imageSource = require('../../assets/americano.jpg');
+      } else {
+        // Varsayılan logo
+        imageSource = require('../../assets/logo.png');
+      }
+      
+      // Ürünleri sepete ekle
+      const coffeeItem = {
+        id: `product-${item.name.replace(/\s+/g, '-').toLowerCase()}`,
+        name: item.name,
+        price: item.price,
+        description: `${item.name} açıklaması.`,
+        image: imageSource,
+        quantity: item.quantity
+      };
+      
+      // Doğrudan ürünü ekle
+      dispatch({ 
+        type: 'ADD_ITEM_WITH_QUANTITY', 
+        payload: coffeeItem
+      });
+    });
+    
+    // Kullanıcıya bildirim göster
+    Alert.alert('Sepete Eklendi', 'Önceki siparişiniz sepete eklendi.', [
+      {
+        text: 'Sepete Git',
+        onPress: () => navigation.navigate('CartTab')
+      },
+      {
+        text: 'Tamam',
+        style: 'cancel'
+      }
+    ]);
   };
 
   return (
@@ -72,6 +162,46 @@ const ProfileScreen = ({ navigation }) => {
           <Text style={styles.accountInfoLabel}>Telefon:</Text>
           <Text style={styles.accountInfoValue}>+90 5XX XXX XX XX</Text>
         </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Sipariş Geçmişi</Text>
+        {orderHistory.map((order) => (
+          <View key={order.id} style={styles.orderItem}>
+            <View style={styles.orderHeader}>
+              <View>
+                <Text style={styles.orderId}>Sipariş #{order.id}</Text>
+                <Text style={styles.orderDate}>{order.date}</Text>
+              </View>
+              <View style={styles.orderStatusContainer}>
+                <Text style={styles.orderStatus}>{order.status}</Text>
+              </View>
+            </View>
+            
+            <View style={styles.orderDetails}>
+              {order.items.map((item, index) => (
+                <View key={index} style={styles.orderItemRow}>
+                  <Text style={styles.orderItemName}>
+                    {item.quantity}x {item.name}
+                  </Text>
+                  <Text style={styles.orderItemPrice}>{item.price * item.quantity} ₺</Text>
+                </View>
+              ))}
+              <View style={styles.orderTotal}>
+                <Text style={styles.orderTotalLabel}>Toplam:</Text>
+                <Text style={styles.orderTotalValue}>{order.total} ₺</Text>
+              </View>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.reorderButton}
+              onPress={() => handleReorder(order)}
+            >
+              <Ionicons name="refresh-outline" size={14} color="#FFFFFF" />
+              <Text style={styles.reorderButtonText}> Tekrar Sipariş Ver</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
       </View>
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -156,6 +286,90 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#2C3E50',
     fontWeight: '500',
+  },
+  orderItem: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  orderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#F9FAFB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  orderId: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+  },
+  orderDate: {
+    fontSize: 14,
+    color: '#7F8C8D',
+    marginTop: 4,
+  },
+  orderStatusContainer: {
+    backgroundColor: '#27AE60',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  orderStatus: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  orderDetails: {
+    padding: 12,
+  },
+  orderItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  orderItemName: {
+    fontSize: 14,
+    color: '#2C3E50',
+  },
+  orderItemPrice: {
+    fontSize: 14,
+    color: '#2C3E50',
+    fontWeight: '500',
+  },
+  orderTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+    paddingTop: 10,
+    marginTop: 6,
+  },
+  orderTotalLabel: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+  },
+  orderTotalValue: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+  },
+  reorderButton: {
+    backgroundColor: '#2C3E50',
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reorderButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   logoutButton: {
     backgroundColor: '#E74C3C',

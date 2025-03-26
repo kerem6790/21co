@@ -34,6 +34,23 @@ const store = configureStore({
             total: state.items.reduce((total, item) => total + (item.price * item.quantity), 0) + action.payload.price
           };
         
+        case 'ADD_ITEM_WITH_QUANTITY':
+          // Sipariş geçmişinden ürün ekleme (quantity bilgisi ile)
+          const existingItemWithQuantity = state.items.find(item => item.id === action.payload.id);
+          if (existingItemWithQuantity) {
+            existingItemWithQuantity.quantity += action.payload.quantity;
+            return {
+              ...state,
+              total: state.items.reduce((total, item) => total + (item.price * item.quantity), 0)
+            };
+          }
+          return {
+            ...state,
+            items: [...state.items, action.payload],
+            total: state.items.reduce((total, item) => total + (item.price * item.quantity), 0) + 
+                   (action.payload.price * action.payload.quantity)
+          };
+        
         case 'REMOVE_FROM_CART':
           const filteredItems = state.items.filter(item => item.id !== action.payload.id);
           return {
