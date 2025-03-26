@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Image,
   Alert,
 } from 'react-native';
 
@@ -14,29 +13,20 @@ const LoginScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
 
   const handleLogin = () => {
-    // Burada gerçek login işlemi yapılacak
-    if (email && password) {
+    if (email === 'test@test.com' && password === '123456') {
       navigation.replace('Menu');
     } else {
-      Alert.alert('Hata', 'Lütfen tüm alanları doldurun');
+      Alert.alert('Hata', 'Geçersiz email veya şifre');
     }
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.logoContainer}>
-        <Image
-          source={require('../../assets/logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <Text style={styles.title}>21co</Text>
-      </View>
-
+      <Text style={styles.title}>21CO</Text>
       <View style={styles.formContainer}>
         <TextInput
           style={styles.input}
-          placeholder="E-posta"
+          placeholder="Email"
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
@@ -49,18 +39,8 @@ const LoginScreen = ({ navigation }) => {
           onChangeText={setPassword}
           secureTextEntry
         />
-
         <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
           <Text style={styles.loginButtonText}>Giriş Yap</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.registerButton}
-          onPress={() => navigation.navigate('Register')}
-        >
-          <Text style={styles.registerButtonText}>
-            Hesabınız yok mu? Kayıt olun
-          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -71,55 +51,45 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 20,
   },
-  logoContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logo: {
-    width: 150,
-    height: 150,
-    marginBottom: 20,
-  },
   title: {
-    fontSize: 32,
+    fontSize: 48,
     fontWeight: 'bold',
-    color: '#2C3E50',
+    color: '#27AE60',
+    marginBottom: 40,
   },
   formContainer: {
-    flex: 1,
-    justifyContent: 'center',
+    width: '100%',
+    maxWidth: 400,
   },
   input: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
     padding: 15,
-    marginBottom: 15,
+    borderRadius: 8,
+    marginBottom: 16,
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   loginButton: {
-    backgroundColor: '#2C3E50',
-    borderRadius: 8,
+    backgroundColor: '#27AE60',
     padding: 15,
+    borderRadius: 8,
     alignItems: 'center',
-    marginTop: 10,
   },
   loginButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: 'bold',
-  },
-  registerButton: {
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  registerButtonText: {
-    color: '#2C3E50',
-    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

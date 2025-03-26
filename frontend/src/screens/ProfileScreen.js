@@ -54,7 +54,7 @@ const ProfileScreen = ({ navigation }) => {
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Image
-          source={require('../assets/profile-placeholder.png')}
+          source={require('../../assets/profile-placeholder.png')}
           style={styles.profileImage}
         />
         <Text style={styles.name}>{user.name}</Text>

@@ -5,52 +5,45 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  Image,
 } from 'react-native';
 import { useDispatch } from 'react-redux';
-import { addToCart } from '../redux/slices/cartSlice';
 
 const coffeeItems = [
   {
     id: '1',
     name: 'Türk Kahvesi',
     price: 45,
-    image: require('../../assets/turkish coffe.jpeg'),
     description: 'Geleneksel Türk kahvesi, yanında lokum ile servis edilir.',
   },
   {
     id: '2',
     name: 'Espresso',
     price: 35,
-    image: require('../../assets/espresso.jpeg'),
     description: 'İtalyan usulü hazırlanmış yoğun espresso.',
   },
   {
     id: '3',
     name: 'Latte',
     price: 50,
-    image: require('../../assets/latte.jpeg'),
     description: 'Espresso ve buharla ısıtılmış süt ile hazırlanmış latte.',
   },
   {
     id: '4',
     name: 'Americano',
     price: 40,
-    image: require('../../assets/americano.jpg'),
     description: 'Espresso ve sıcak su ile hazırlanmış americano.',
   },
 ];
 
-const MenuScreen = () => {
+const MenuScreen = ({ navigation }) => {
   const dispatch = useDispatch();
 
   const handleAddToCart = (item) => {
-    dispatch(addToCart(item));
+    dispatch({ type: 'ADD_TO_CART', payload: item });
   };
 
   const renderItem = ({ item }) => (
     <View style={styles.menuItem}>
-      <Image source={item.image} style={styles.coffeeImage} />
       <View style={styles.itemInfo}>
         <Text style={styles.coffeeName}>{item.name}</Text>
         <Text style={styles.coffeeDescription}>{item.description}</Text>
@@ -67,13 +60,18 @@ const MenuScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Kahve Menüsü</Text>
       <FlatList
         data={coffeeItems}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
       />
+      <TouchableOpacity
+        style={styles.profileButton}
+        onPress={() => navigation.navigate('Profile')}
+      >
+        <Text style={styles.profileButtonText}>Profil</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -82,12 +80,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',
-  },
-  header: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    padding: 16,
-    color: '#2C3E50',
   },
   listContainer: {
     padding: 16,
@@ -107,12 +99,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-  },
-  coffeeImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    marginRight: 16,
   },
   itemInfo: {
     flex: 1,
@@ -143,6 +129,18 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
   },
+  profileButton: {
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
+    backgroundColor: '#2C3E50',
+    padding: 12,
+    borderRadius: 8,
+  },
+  profileButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
 });
 
-export default MenuScreen;
+export default MenuScreen; 
