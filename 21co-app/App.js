@@ -2,12 +2,15 @@ import React from 'react';
 import { Provider } from 'react-redux';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { configureStore } from '@reduxjs/toolkit';
+import { Ionicons } from '@expo/vector-icons';
 
 // Ekranları içe aktaralım
 import LoginScreen from './src/screens/LoginScreen';
 import MenuScreen from './src/screens/MenuScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import CartScreen from './src/screens/CartScreen';
 
 // Redux store'u oluşturalım
 const store = configureStore({
@@ -36,6 +39,35 @@ const store = configureStore({
 });
 
 const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
+
+function TabNavigator() {
+  return (
+    <Tab.Navigator
+      initialRouteName="ProfileTab"
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
+          if (route.name === 'MenuTab') {
+            iconName = focused ? 'cafe' : 'cafe-outline';
+          } else if (route.name === 'ProfileTab') {
+            iconName = focused ? 'person' : 'person-outline';
+          } else if (route.name === 'CartTab') {
+            iconName = focused ? 'cart' : 'cart-outline';
+          }
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: '#2C3E50',
+        tabBarInactiveTintColor: 'gray',
+        headerShown: false,
+      })}
+    >
+      <Tab.Screen name="MenuTab" component={MenuScreen} options={{ title: 'Sipariş Ver' }} />
+      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: 'Profil' }} />
+      <Tab.Screen name="CartTab" component={CartScreen} options={{ title: 'Sepet' }} />
+    </Tab.Navigator>
+  );
+}
 
 export default function App() {
   return (
@@ -45,7 +77,7 @@ export default function App() {
           initialRouteName="Login"
           screenOptions={{
             headerStyle: {
-              backgroundColor: '#27AE60',
+              backgroundColor: '#2C3E50',
             },
             headerTintColor: '#fff',
             headerTitleStyle: {
@@ -59,17 +91,12 @@ export default function App() {
             options={{ headerShown: false }}
           />
           <Stack.Screen
-            name="Menu"
-            component={MenuScreen}
-            options={{ title: 'Kahve Menüsü' }}
-          />
-          <Stack.Screen
-            name="Profile"
-            component={ProfileScreen}
-            options={{ title: 'Profil' }}
+            name="Main"
+            component={TabNavigator}
+            options={{ headerShown: false }}
           />
         </Stack.Navigator>
       </NavigationContainer>
     </Provider>
   );
-} 
+}
