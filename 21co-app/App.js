@@ -7,7 +7,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import { Ionicons } from '@expo/vector-icons';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './src/firebase/firebaseConfig';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, StyleSheet } from 'react-native';
 
 // Ekranları içe aktaralım
 import LoginScreen from './src/screens/LoginScreen';
@@ -119,108 +119,66 @@ function TabNavigator() {
   );
 }
 
-export default function App() {
-  const [initializing, setInitializing] = useState(true);
+// Uygulama başlatma ekranı bileşeni
+const LoadingScreen = () => (
+  <View style={styles.loadingContainer}>
+    <ActivityIndicator size="large" color="#5D4037" />
+  </View>
+);
+
+const App = () => {
+  const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState(null);
-
-  // Uygulama başladığında çıkış yap (her zaman login ekranından başlamak için)
+  
   useEffect(() => {
-    const handleInitialLogout = async () => {
-      try {
-        await signOut(auth);
-        console.log("Uygulama başlangıcında çıkış yapıldı");
-      } catch (error) {
-        console.error("Çıkış hatası:", error);
-      } finally {
-        setInitializing(false);
-      }
-    };
+    // Firebase oturum durumunu dinle
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setIsLoading(false);
+    });
     
-    handleInitialLogout();
+    // Component unmount olduğunda dinlemeyi durdur
+    return () => unsubscribe();
   }, []);
-
-  // Firebase auth state değişikliklerini dinle
-  useEffect(() => {
-    let isMounted = true;
-    
-    const checkAuthState = async () => {
-      try {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-          if (isMounted) {
-            setUser(user);
-          }
-        });
-        
-        // Cleanup subscription
-        return () => {
-          unsubscribe();
-        };
-      } catch (error) {
-        console.log("Auth state dinleme hatası:", error);
-      }
-    };
-    
-    const authSubscription = checkAuthState();
-    
-    // Cleanup on unmount
-    return () => {
-      isMounted = false;
-      if (authSubscription && typeof authSubscription.then === 'function') {
-        authSubscription.then(unsubscribe => unsubscribe && unsubscribe());
-      }
-    };
-  }, []);
-
-  // Yükleniyor durumu
-  if (initializing) {
+  
+  // Yükleme ekranını göster
+  if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#2C3E50" />
-      </View>
+      <Provider store={store}>
+        <LoadingScreen />
+      </Provider>
     );
   }
-
+  
   return (
     <Provider store={store}>
       <NavigationContainer>
-        <Stack.Navigator
-          initialRouteName="Login"
-          screenOptions={{
-            headerStyle: {
-              backgroundColor: '#2C3E50',
-            },
-            headerTintColor: '#fff',
-            headerTitleStyle: {
-              fontWeight: 'bold',
-            },
-          }}
-        >
-          <Stack.Screen
-            name="Login"
-            component={LoginScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Register"
-            component={RegisterScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Main"
-            component={TabNavigator}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Payment"
-            component={PaymentScreen}
-            options={{ 
-              title: 'Ödeme',
-              headerBackTitle: 'Geri',
-              headerTintColor: '#FFFFFF'
-            }}
-          />
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {user ? (
+            // Kullanıcı giriş yapmışsa ana ekranları göster
+            <Stack.Screen name="Main" component={TabNavigator} />
+          ) : (
+            // Kullanıcı giriş yapmamışsa login ve kayıt ekranlarını göster
+            <>
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Register" component={RegisterScreen} />
+            </>
+          )}
+          {/* Hem giriş yapmış hem de yapmamış kullanıcıların erişebileceği ekranlar */}
+          <Stack.Screen name="Payment" component={PaymentScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </Provider>
   );
-}
+};
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+  },
+});
+
+export default App;

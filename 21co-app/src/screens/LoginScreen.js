@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,124 +8,170 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  TouchableWithoutFeedback,
+  Keyboard
 } from 'react-native';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { auth } from '../firebase/firebaseConfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-
+  const [rememberMe, setRememberMe] = useState(false);
+  
+  useEffect(() => {
+    // Uygulama açıldığında, önceden kaydedilmiş kullanıcı bilgilerini kontrol et
+    const checkSavedCredentials = async () => {
+      try {
+        setLoading(true);
+        const savedEmail = await AsyncStorage.getItem('userEmail');
+        const savedRememberMe = await AsyncStorage.getItem('rememberMe');
+        
+        if (savedEmail && savedRememberMe === 'true') {
+          setEmail(savedEmail);
+          setRememberMe(true);
+          
+          // Kullanıcı oturumu hala aktifse doğrudan ana sayfaya yönlendir
+          const currentUser = auth.currentUser;
+          if (currentUser) {
+            navigation.replace('Main');
+          }
+        }
+        setLoading(false);
+      } catch (error) {
+        console.error('Kaydedilmiş kullanıcı bilgisi alınamadı:', error);
+        setLoading(false);
+      }
+    };
+    
+    checkSavedCredentials();
+  }, [navigation]);
+  
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Hata', 'Lütfen email ve şifre alanlarını doldurun.');
+    if (!email.trim()) {
+      Alert.alert('Hata', 'Lütfen email adresinizi girin.');
       return;
     }
-
+    if (!password.trim()) {
+      Alert.alert('Hata', 'Lütfen şifrenizi girin.');
+      return;
+    }
+    
     setLoading(true);
     
     try {
-      console.log("Firebase ile giriş yapılıyor...");
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log("Giriş başarılı!");
-      
-      // Kullanıcı bilgileri doğru, ana sayfaya yönlendir
-      setLoading(false);
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Main' }]
-      });
-      
-    } catch (error) {
-      setLoading(false);
-      console.error("Login error:", error.code, error.message);
-      
-      let errorMessage = 'Giriş yapılırken bir hata oluştu.';
-      
-      switch(error.code) {
-        case 'auth/invalid-email':
-          errorMessage = 'Geçersiz email formatı.';
-          break;
-        case 'auth/user-disabled':
-          errorMessage = 'Bu kullanıcı hesabı devre dışı bırakılmış.';
-          break;
-        case 'auth/user-not-found':
-          errorMessage = 'Bu email ile kayıtlı kullanıcı bulunamadı.';
-          break;
-        case 'auth/wrong-password':
-          errorMessage = 'Hatalı şifre.';
-          break;
-        case 'auth/invalid-credential':
-          errorMessage = 'Geçersiz kullanıcı bilgileri. Email veya şifre hatalı.';
-          break;
-        case 'auth/invalid-password':
-          errorMessage = 'Şifre geçersiz veya eksik.';
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = 'Çok fazla başarısız giriş denemesi. Lütfen daha sonra tekrar deneyin.';
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = 'Ağ hatası. İnternet bağlantınızı kontrol edin.';
-          break;
-        default:
-          errorMessage = `Giriş hatası: ${error.message}`;
+      // Firebase'de kalıcı oturum ayarla
+      if (rememberMe) {
+        await setPersistence(auth, browserLocalPersistence);
       }
       
-      Alert.alert('Giriş Başarısız', errorMessage);
+      // Kullanıcı girişi
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      console.log('Kullanıcı giriş yaptı:', userCredential.user.email);
+      
+      // Oturum açık kalsın işaretliyse, email'i kaydet
+      if (rememberMe) {
+        await AsyncStorage.setItem('userEmail', email);
+        await AsyncStorage.setItem('rememberMe', 'true');
+      } else {
+        // İşaretli değilse bilgileri temizle
+        await AsyncStorage.removeItem('userEmail');
+        await AsyncStorage.setItem('rememberMe', 'false');
+      }
+      
+      // Ana sayfaya yönlendir
+      navigation.replace('Main');
+    } catch (error) {
+      let errorMessage = 'Giriş başarısız. Lütfen tekrar deneyin.';
+      
+      // Hata kodlarına göre özel mesajlar
+      if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Geçersiz email adresi.';
+      } else if (error.code === 'auth/invalid-credential') {
+        errorMessage = 'Email veya şifre yanlış.';
+      } else if (error.code === 'auth/user-disabled') {
+        errorMessage = 'Bu kullanıcı hesabı devre dışı bırakılmış.';
+      } else if (error.code === 'auth/user-not-found') {
+        errorMessage = 'Bu email adresi ile kayıtlı kullanıcı bulunamadı.';
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Yanlış şifre girdiniz.';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Çok fazla başarısız giriş denemesi. Lütfen daha sonra tekrar deneyin.';
+      }
+      
+      console.error('Giriş hatası:', error.code, error.message);
+      Alert.alert('Giriş Hatası', errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Image 
-        source={require('../../assets/logo.png')} 
-        style={styles.logo}
-        resizeMode="contain"
-      />
-      <Text style={styles.title}>21CO</Text>
-      <View style={styles.formContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          editable={!loading}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Şifre"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          editable={!loading}
-        />
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={styles.container}>
+        <View style={styles.logoContainer}>
+          <Image 
+            source={require('../assets/logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>21Co Coffee</Text>
+        </View>
+        
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          
+          <TextInput
+            style={styles.input}
+            placeholder="Şifre"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
+          
+          <TouchableOpacity 
+            style={styles.rememberMeContainer} 
+            onPress={() => setRememberMe(!rememberMe)}
+          >
+            <Ionicons 
+              name={rememberMe ? "checkbox" : "square-outline"} 
+              size={24} 
+              color="#5D4037" 
+            />
+            <Text style={styles.rememberMeText}>Oturum açık kalsın</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.buttonText}>Giriş Yap</Text>
+            )}
+          </TouchableOpacity>
+        </View>
         
         <TouchableOpacity 
-          style={[styles.loginButton, loading && styles.loginButtonDisabled]} 
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" size="small" />
-          ) : (
-            <Text style={styles.loginButtonText}>Giriş Yap</Text>
-          )}
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.registerLink}
+          style={styles.registerButton}
           onPress={() => navigation.navigate('Register')}
-          disabled={loading}
         >
-          <Text style={styles.registerLinkText}>
-            Hesabınız yok mu? Kaydolun
-          </Text>
+          <Text style={styles.registerText}>Hesabınız yok mu? Kaydolun</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </TouchableWithoutFeedback>
   );
 };
 
@@ -138,10 +184,13 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 50,
   },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
   logo: {
     width: 120,
     height: 120,
-    marginBottom: 20,
   },
   title: {
     fontSize: 48,
@@ -149,7 +198,7 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     marginBottom: 40,
   },
-  formContainer: {
+  inputContainer: {
     width: '100%',
     maxWidth: 400,
   },
@@ -168,27 +217,38 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  loginButton: {
+  rememberMeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+    alignSelf: 'flex-start',
+  },
+  rememberMeText: {
+    marginLeft: 8,
+    color: '#5D4037',
+    fontSize: 14,
+  },
+  button: {
     backgroundColor: '#2C3E50',
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
   },
-  loginButtonDisabled: {
-    backgroundColor: '#7F8C8D',
+  buttonDisabled: {
+    backgroundColor: '#BCAAA4',
   },
-  loginButtonText: {
+  buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
-  registerLink: {
-    alignItems: 'center',
+  registerButton: {
     marginTop: 20,
   },
-  registerLinkText: {
-    color: '#2C3E50',
+  registerText: {
+    color: '#5D4037',
     fontSize: 14,
+    textDecorationLine: 'underline',
   },
 });
 

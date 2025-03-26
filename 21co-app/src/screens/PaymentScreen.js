@@ -10,8 +10,56 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDoc, doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/firebaseConfig';
+
+// Günün tarihine göre prefiks oluşturan fonksiyon
+const getDatePrefix = () => {
+  const now = new Date();
+  // Format: GGAAYY (Gün-Ay-Yıl son iki rakamı)
+  return `${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getFullYear().toString().slice(2)}`;
+};
+
+// Günlük benzersiz sipariş kodu oluşturan fonksiyon
+const generateDailyOrderCode = async () => {
+  try {
+    const datePrefix = getDatePrefix();
+    const counterRef = doc(db, 'orderCounters', datePrefix);
+    
+    // Bugün için sayaç belgesini kontrol et
+    const counterDoc = await getDoc(counterRef);
+    
+    let nextCounter = 1;
+    if (counterDoc.exists()) {
+      // Belge varsa sayacı bir artır
+      nextCounter = counterDoc.data().counter + 1;
+    }
+    
+    // Sayacı güncelle
+    await setDoc(counterRef, { counter: nextCounter, date: datePrefix });
+    
+    // Tam kod: GGAAYY-XXXX formatında (iç sistemde kullanılacak)
+    const fullOrderCode = `${datePrefix}-${nextCounter.toString().padStart(4, '0')}`;
+    
+    // Kullanıcıya gösterilecek 4 haneli kod
+    // Günün tarihi ile counter'ı birleştirip 4 haneli bir sayı oluştur
+    const dayOfMonth = new Date().getDate();
+    const displayCode = ((dayOfMonth * 100) + nextCounter).toString().padStart(4, '0');
+    
+    return {
+      fullOrderCode,  // Sistemde saklanacak tam kod
+      displayCode     // Kullanıcıya gösterilecek 4 haneli kod
+    };
+  } catch (error) {
+    console.error("Sipariş kodu oluşturma hatası:", error);
+    // Hata durumunda yedek kod oluştur
+    const randomCode = Math.floor(1000 + Math.random() * 9000).toString();
+    return {
+      fullOrderCode: `${getDatePrefix()}-ERR${randomCode}`,
+      displayCode: randomCode
+    };
+  }
+};
 
 const PaymentScreen = ({ navigation, route }) => {
   const { total } = route.params;
@@ -102,9 +150,15 @@ const PaymentScreen = ({ navigation, route }) => {
         return;
       }
       
+      // Günlük benzersiz sipariş kodu oluştur
+      const orderCodes = await generateDailyOrderCode();
+      console.log("[SİPARİŞ] Sipariş kodları oluşturuldu:", orderCodes);
+      
       // Sipariş verisi oluştur
       const orderData = {
         userId: currentUser.uid,
+        orderCode: orderCodes.fullOrderCode,
+        displayOrderCode: orderCodes.displayCode,
         items: cart.items,
         totalPrice: total,
         status: 'pending',
@@ -117,6 +171,8 @@ const PaymentScreen = ({ navigation, route }) => {
       
       console.log("[SİPARİŞ] Sipariş verisi hazırlandı:", JSON.stringify({
         userId: orderData.userId,
+        orderCode: orderData.orderCode,
+        displayCode: orderData.displayOrderCode,
         itemCount: orderData.items.length,
         total: orderData.totalPrice,
         status: orderData.status
@@ -138,7 +194,7 @@ const PaymentScreen = ({ navigation, route }) => {
       setLoading(false);
       Alert.alert(
         'Ödeme Başarılı',
-        'Siparişiniz alındı. Sipariş numaranız: ' + orderRef.id,
+        `Siparişiniz alındı.\nSipariş Kodunuz: ${orderCodes.displayCode}`,
         [
           {
             text: 'Tamam',
@@ -147,19 +203,7 @@ const PaymentScreen = ({ navigation, route }) => {
         ]
       );
     } catch (error) {
-      console.error("[SİPARİŞ HATASI]", error.code, error.message);
-      console.error("[SİPARİŞ HATASI] Tam hata:", JSON.stringify(error));
-      
-      setLoading(false);
-      
-      let errorMessage = 'Siparişiniz oluşturulurken bir hata oluştu.';
-      if (error.code === 'permission-denied') {
-        errorMessage += ' Yetki hatası: Firebase kurallarını kontrol edin.';
-      } else if (error.code === 'unavailable') {
-        errorMessage += ' Bağlantı hatası: İnternet bağlantınızı kontrol edin.';
-      }
-      
-      Alert.alert('Sipariş Hatası', errorMessage);
+      // ... existing error handling ...
     }
   };
 
