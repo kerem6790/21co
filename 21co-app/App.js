@@ -16,6 +16,7 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import CartScreen from './src/screens/CartScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import PaymentScreen from './src/screens/PaymentScreen';
+import AdminOrdersScreen from './src/screens/AdminOrdersScreen';
 
 // Redux store'u oluşturalım
 const store = configureStore({
@@ -91,7 +92,13 @@ const store = configureStore({
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+// Admin e-posta listesi - gerçek uygulamada Firestore'da saklanmalı
+const ADMIN_EMAILS = ['admin@example.com', 'osman@gmail.con'];
+
 function TabNavigator() {
+  // Kullanıcının admin olup olmadığını kontrol et
+  const isAdmin = auth.currentUser && ADMIN_EMAILS.includes(auth.currentUser.email);
+  
   return (
     <Tab.Navigator
       initialRouteName="ProfileTab"
@@ -104,6 +111,8 @@ function TabNavigator() {
             iconName = focused ? 'person' : 'person-outline';
           } else if (route.name === 'CartTab') {
             iconName = focused ? 'cart' : 'cart-outline';
+          } else if (route.name === 'AdminTab') {
+            iconName = focused ? 'list' : 'list-outline';
           }
           return <Ionicons name={iconName} size={size} color={color} />;
         },
@@ -115,6 +124,19 @@ function TabNavigator() {
       <Tab.Screen name="MenuTab" component={MenuScreen} options={{ title: 'Sipariş Ver' }} />
       <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: 'Profil' }} />
       <Tab.Screen name="CartTab" component={CartScreen} options={{ title: 'Sepet' }} />
+      
+      {/* Admin tab'i sadece admin kullanıcılar için göster */}
+      {isAdmin && (
+        <Tab.Screen 
+          name="AdminTab" 
+          component={AdminOrdersScreen} 
+          options={{ 
+            title: 'Admin Panel',
+            tabBarBadge: '!', // Bildirim gibi dikkat çekmesi için
+            tabBarBadgeStyle: { backgroundColor: '#E74C3C' }
+          }} 
+        />
+      )}
     </Tab.Navigator>
   );
 }

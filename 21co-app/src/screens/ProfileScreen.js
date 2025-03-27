@@ -8,6 +8,7 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  FlatList
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +22,9 @@ const ProfileScreen = ({ navigation }) => {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [orderHistory, setOrderHistory] = useState([]);
+  const [pendingOrders, setPendingOrders] = useState([]);
+  const [completedOrders, setCompletedOrders] = useState([]);
+  const [showCompletedOrders, setShowCompletedOrders] = useState(false);
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -62,6 +66,8 @@ const ProfileScreen = ({ navigation }) => {
             try {
               const querySnapshot = await getDocs(q);
               const orders = [];
+              const pending = [];
+              const completed = [];
               
               querySnapshot.forEach((doc) => {
                 const orderData = doc.data();
@@ -77,16 +83,27 @@ const ProfileScreen = ({ navigation }) => {
                   });
                 }
                 
-                orders.push({
+                const orderItem = {
                   id: orderData.displayOrderCode || doc.id,
                   date: orderDate,
                   total: orderData.totalPrice || 0,
                   status: orderData.status || 'Beklemede',
                   items: orderData.items || []
-                });
+                };
+                
+                orders.push(orderItem);
+                
+                // Siparişleri durumlarına göre ayır
+                if (orderData.status === 'pending') {
+                  pending.push(orderItem);
+                } else if (orderData.status === 'completed' || orderData.status === 'ready') {
+                  completed.push(orderItem);
+                }
               });
               
               setOrderHistory(orders);
+              setPendingOrders(pending);
+              setCompletedOrders(completed);
               console.log("Sipariş geçmişi yüklendi, sipariş sayısı:", orders.length);
             } catch (permissionError) {
               console.error("Sipariş geçmişi yüklenirken hata:", permissionError);
@@ -217,6 +234,40 @@ const ProfileScreen = ({ navigation }) => {
     ]);
   };
 
+  // Sipariş geçmişi görüntüleme fonksiyonu
+  const toggleCompletedOrders = () => {
+    setShowCompletedOrders(!showCompletedOrders);
+  };
+
+  // Sipariş öğesi render fonksiyonu
+  const renderOrderItem = ({ item }) => {
+    return (
+      <View style={styles.orderItem}>
+        <View style={styles.orderHeader}>
+          <Text style={styles.orderNumber}>Sipariş #{item.id}</Text>
+          <Text style={styles.orderDate}>{item.date}</Text>
+        </View>
+        <View style={styles.orderDetails}>
+          <Text style={styles.orderCode}>Sipariş Kodu: <Text style={styles.orderCodeValue}>{item.id}</Text></Text>
+          <Text style={styles.orderTotal}>Toplam: {item.total} TL</Text>
+          <Text style={styles.orderStatus}>Durum: {
+            item.status === 'pending' ? 'Beklemede' : 
+            item.status === 'ready' ? 'Hazır' : 
+            item.status === 'cancelled' ? 'İptal Edildi' : 'Tamamlandı'
+          }</Text>
+        </View>
+        {item.status === 'completed' && (
+          <TouchableOpacity 
+            style={styles.reorderButton}
+            onPress={() => handleReorder(item)}
+          >
+            <Text style={styles.reorderButtonText}>Tekrar Sipariş Ver</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
   return (
     <ScrollView style={styles.container}>
       {loading ? (
@@ -259,51 +310,43 @@ const ProfileScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Sipariş Geçmişi</Text>
-            {orderHistory.length > 0 ? (
-              orderHistory.map((order) => (
-                <View key={order.id} style={styles.orderItem}>
-                  <View style={styles.orderHeader}>
-                    <View>
-                      <Text style={styles.orderId}>Sipariş #{order.id}</Text>
-                      <Text style={styles.orderDate}>{order.date}</Text>
-                    </View>
-                    <View style={styles.orderStatusContainer}>
-                      <Text style={styles.orderStatus}>{order.status}</Text>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.orderDetails}>
-                    {order.items.map((item, index) => (
-                      <View key={index} style={styles.orderItemRow}>
-                        <Text style={styles.orderItemName}>
-                          {item.quantity}x {item.name}
-                        </Text>
-                        <Text style={styles.orderItemPrice}>{item.price * item.quantity} ₺</Text>
-                      </View>
-                    ))}
-                    <View style={styles.orderTotal}>
-                      <Text style={styles.orderTotalLabel}>Toplam:</Text>
-                      <Text style={styles.orderTotalValue}>{order.total} ₺</Text>
-                    </View>
-                  </View>
-                  
-                  <TouchableOpacity 
-                    style={styles.reorderButton}
-                    onPress={() => handleReorder(order)}
-                  >
-                    <Ionicons name="refresh-outline" size={14} color="#FFFFFF" />
-                    <Text style={styles.reorderButtonText}> Tekrar Sipariş Ver</Text>
-                  </TouchableOpacity>
-                </View>
-              ))
+            <Text style={styles.sectionTitle}>Aktif Siparişlerim</Text>
+            {pendingOrders.length === 0 ? (
+              <Text style={styles.emptyText}>Aktif siparişiniz bulunmuyor.</Text>
             ) : (
-              <View style={styles.emptyOrdersContainer}>
-                <Ionicons name="cart-outline" size={50} color="#BCAAA4" />
-                <Text style={styles.emptyOrdersText}>Henüz sipariş vermediniz</Text>
-              </View>
+              <FlatList
+                data={pendingOrders}
+                renderItem={renderOrderItem}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+              />
             )}
           </View>
+
+          <TouchableOpacity 
+            style={styles.showOrdersButton}
+            onPress={toggleCompletedOrders}
+          >
+            <Text style={styles.showOrdersButtonText}>
+              {showCompletedOrders ? 'Eski Siparişleri Gizle' : 'Eski Siparişleri Göster'}
+            </Text>
+          </TouchableOpacity>
+
+          {showCompletedOrders && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Eski Siparişlerim</Text>
+              {completedOrders.length === 0 ? (
+                <Text style={styles.emptyText}>Eski siparişiniz bulunmuyor.</Text>
+              ) : (
+                <FlatList
+                  data={completedOrders}
+                  renderItem={renderOrderItem}
+                  keyExtractor={(item) => item.id}
+                  scrollEnabled={false}
+                />
+              )}
+            </View>
+          )}
 
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Text style={styles.logoutButtonText}>Çıkış Yap</Text>
@@ -391,88 +434,76 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   orderItem: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
-    marginBottom: 12,
-    overflow: 'hidden',
+    padding: 15,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.5,
+    elevation: 2,
   },
   orderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#F9FAFB',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    marginBottom: 8,
   },
-  orderId: {
-    fontSize: 15,
+  orderNumber: {
     fontWeight: 'bold',
+    fontSize: 16,
     color: '#2C3E50',
   },
   orderDate: {
-    fontSize: 14,
     color: '#7F8C8D',
-    marginTop: 4,
-  },
-  orderStatusContainer: {
-    backgroundColor: '#27AE60',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  orderStatus: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 14,
   },
   orderDetails: {
-    padding: 12,
+    marginBottom: 8,
   },
-  orderItemRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  orderItemName: {
-    fontSize: 14,
+  orderCode: {
+    fontSize: 15,
+    marginBottom: 4,
     color: '#2C3E50',
   },
-  orderItemPrice: {
-    fontSize: 14,
-    color: '#2C3E50',
-    fontWeight: '500',
+  orderCodeValue: {
+    fontWeight: 'bold',
+    color: '#E67E22',
   },
   orderTotal: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    paddingTop: 10,
-    marginTop: 6,
-  },
-  orderTotalLabel: {
     fontSize: 15,
-    fontWeight: 'bold',
-    color: '#2C3E50',
+    marginBottom: 4,
   },
-  orderTotalValue: {
+  orderStatus: {
     fontSize: 15,
-    fontWeight: 'bold',
     color: '#2C3E50',
   },
   reorderButton: {
-    backgroundColor: '#2C3E50',
-    padding: 10,
-    flexDirection: 'row',
+    backgroundColor: '#3498DB',
+    borderRadius: 4,
+    padding: 8,
     alignItems: 'center',
-    justifyContent: 'center',
+    marginTop: 8,
   },
   reorderButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
+    fontWeight: 'bold',
+  },
+  showOrdersButton: {
+    backgroundColor: '#2C3E50',
+    borderRadius: 4,
+    padding: 12,
+    alignItems: 'center',
+    margin: 15,
+  },
+  showOrdersButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#7F8C8D',
+    marginVertical: 15,
   },
   logoutButton: {
     backgroundColor: '#E74C3C',
@@ -491,17 +522,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 50,
-  },
-  emptyOrdersContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 30,
-  },
-  emptyOrdersText: {
-    color: '#7F8C8D',
-    fontSize: 16,
-    fontWeight: '500',
-    marginTop: 10,
   },
 });
 
