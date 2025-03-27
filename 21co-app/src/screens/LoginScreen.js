@@ -11,7 +11,7 @@ import {
   TouchableWithoutFeedback,
   Keyboard
 } from 'react-native';
-import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../firebase/firebaseConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -63,11 +63,6 @@ const LoginScreen = ({ navigation }) => {
     setLoading(true);
     
     try {
-      // Firebase'de kalıcı oturum ayarla
-      if (rememberMe) {
-        await setPersistence(auth, browserLocalPersistence);
-      }
-      
       // Kullanıcı girişi
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       console.log('Kullanıcı giriş yaptı:', userCredential.user.email);
@@ -114,7 +109,7 @@ const LoginScreen = ({ navigation }) => {
       <View style={styles.container}>
         <View style={styles.logoContainer}>
           <Image 
-            source={require('../assets/logo.png')}
+            source={require('../../assets/logo.png')}
             style={styles.logo}
             resizeMode="contain"
           />

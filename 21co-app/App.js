@@ -156,7 +156,11 @@ const App = () => {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {user ? (
             // Kullanıcı giriş yapmışsa ana ekranları göster
-            <Stack.Screen name="Main" component={TabNavigator} />
+            <>
+              <Stack.Screen name="Main" component={TabNavigator} />
+              {/* Ödeme ekranı sadece giriş yapan kullanıcılar için */}
+              <Stack.Screen name="Payment" component={PaymentScreen} />
+            </>
           ) : (
             // Kullanıcı giriş yapmamışsa login ve kayıt ekranlarını göster
             <>
@@ -164,8 +168,6 @@ const App = () => {
               <Stack.Screen name="Register" component={RegisterScreen} />
             </>
           )}
-          {/* Hem giriş yapmış hem de yapmamış kullanıcıların erişebileceği ekranlar */}
-          <Stack.Screen name="Payment" component={PaymentScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </Provider>

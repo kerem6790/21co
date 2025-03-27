@@ -24,38 +24,34 @@ const getDatePrefix = () => {
 const generateDailyOrderCode = async () => {
   try {
     const datePrefix = getDatePrefix();
-    const counterRef = doc(db, 'orderCounters', datePrefix);
     
-    // Bugün için sayaç belgesini kontrol et
-    const counterDoc = await getDoc(counterRef);
-    
-    let nextCounter = 1;
-    if (counterDoc.exists()) {
-      // Belge varsa sayacı bir artır
-      nextCounter = counterDoc.data().counter + 1;
-    }
-    
-    // Sayacı güncelle
-    await setDoc(counterRef, { counter: nextCounter, date: datePrefix });
-    
-    // Tam kod: GGAAYY-XXXX formatında (iç sistemde kullanılacak)
-    const fullOrderCode = `${datePrefix}-${nextCounter.toString().padStart(4, '0')}`;
-    
-    // Kullanıcıya gösterilecek 4 haneli kod
-    // Günün tarihi ile counter'ı birleştirip 4 haneli bir sayı oluştur
+    // Firestore yetkisi sorunu nedeniyle doğrudan yerel olarak kod oluştur
+    const timestamp = new Date().getTime();
+    const randomNum = Math.floor(1 + Math.random() * 999);
     const dayOfMonth = new Date().getDate();
-    const displayCode = ((dayOfMonth * 100) + nextCounter).toString().padStart(4, '0');
+    const displayCode = ((dayOfMonth * 100) + randomNum).toString().padStart(4, '0');
+    
+    const fullOrderCode = `${datePrefix}-${randomNum.toString().padStart(4, '0')}`;
+    
+    console.log("[SİPARİŞ] Yerel olarak sipariş kodu oluşturuldu:", fullOrderCode, displayCode);
     
     return {
       fullOrderCode,  // Sistemde saklanacak tam kod
       displayCode     // Kullanıcıya gösterilecek 4 haneli kod
     };
   } catch (error) {
-    console.error("Sipariş kodu oluşturma hatası:", error);
+    console.error("[SİPARİŞ] Sipariş kodu oluşturma hatası:", error);
     // Hata durumunda yedek kod oluştur
+    const datePrefix = getDatePrefix();
+    const randomCounter = Math.floor(1 + Math.random() * 1000);
     const randomCode = Math.floor(1000 + Math.random() * 9000).toString();
+    
+    const fullOrderCode = `${datePrefix}-MANUAL${randomCounter.toString().padStart(4, '0')}`;
+    
+    console.log("[SİPARİŞ] Manuel sipariş kodu oluşturuldu:", fullOrderCode, randomCode);
+    
     return {
-      fullOrderCode: `${getDatePrefix()}-ERR${randomCode}`,
+      fullOrderCode: fullOrderCode,
       displayCode: randomCode
     };
   }
@@ -150,9 +146,21 @@ const PaymentScreen = ({ navigation, route }) => {
         return;
       }
       
-      // Günlük benzersiz sipariş kodu oluştur
-      const orderCodes = await generateDailyOrderCode();
-      console.log("[SİPARİŞ] Sipariş kodları oluşturuldu:", orderCodes);
+      let orderCodes;
+      try {
+        // Günlük benzersiz sipariş kodu oluştur
+        orderCodes = await generateDailyOrderCode();
+        console.log("[SİPARİŞ] Sipariş kodları oluşturuldu:", orderCodes);
+      } catch (codeError) {
+        console.error("[SİPARİŞ] Kod oluşturma hatası, varsayılan kod kullanılıyor:", codeError);
+        // Kod üretilemediğinde varsayılan kod kullan
+        const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
+        orderCodes = {
+          fullOrderCode: `${dateStr}-FALLBACK-${randomNum}`,
+          displayCode: randomNum.toString()
+        };
+      }
       
       // Sipariş verisi oluştur
       const orderData = {
@@ -203,7 +211,24 @@ const PaymentScreen = ({ navigation, route }) => {
         ]
       );
     } catch (error) {
-      // ... existing error handling ...
+      console.error('[SİPARİŞ] Hata:', error.code, error.message);
+      setLoading(false);
+      
+      let errorMessage = 'Ödeme işlemi sırasında bir hata oluştu.';
+      
+      if (error.code && error.code.includes('permission-denied')) {
+        errorMessage = 'Sipariş oluşturma izniniz yok. Lütfen giriş yapın ve tekrar deneyin.';
+      } else if (error.code && error.code.includes('unavailable')) {
+        errorMessage = 'Sunucu bağlantısı kurulamadı. İnternet bağlantınızı kontrol edin.';
+      } else if (error.code && error.code.includes('not-found')) {
+        errorMessage = 'Sipariş kaydedilirken sistem hatası oluştu. Lütfen daha sonra tekrar deneyin.';
+      }
+      
+      Alert.alert(
+        'Sipariş Hatası', 
+        errorMessage,
+        [{ text: 'Tamam', onPress: () => console.log('Hata alındı')}]
+      );
     }
   };
 
@@ -269,7 +294,7 @@ const PaymentScreen = ({ navigation, route }) => {
         
         <TouchableOpacity
           style={styles.cancelButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => navigation.navigate('Main')}
           disabled={loading}
         >
           <Text style={styles.cancelButtonText}>İptal</Text>

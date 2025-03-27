@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, Timestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase/firebaseConfig';
 
 const RegisterScreen = ({ navigation }) => {
@@ -62,17 +62,16 @@ const RegisterScreen = ({ navigation }) => {
       
       console.log("Firebase kullanıcı oluşturuldu");
       
-      // *****************************
-      // ÖNEMLİ: Firestore çağrısını atla
-      // *****************************
-      /*
       try {
-        // Kullanıcı bilgilerini Firestore'a kaydetme (iç try-catch ile)
+        // Kullanıcı bilgilerini Firestore'a kaydetme
+        const profilePhotoUrl = 'https://firebasestorage.googleapis.com/v0/b/co-7aa0b.appspot.com/o/default-profile.png?alt=media';
+        
         await setDoc(doc(db, "users", user.uid), {
           name: name || 'Kullanıcı', 
           email: email,
           phone: phone || '',
-          createdAt: new Date(),
+          profilePhoto: profilePhotoUrl,
+          createdAt: Timestamp.now(),
         });
         console.log("Firestore kaydı tamamlandı");
       } catch (firestoreError) {
@@ -80,7 +79,6 @@ const RegisterScreen = ({ navigation }) => {
         console.error("Firestore kaydı hatası:", firestoreError);
         console.log("Firestore kaydı başarısız oldu, ancak kullanıcı oluşturuldu");
       }
-      */
       
       // Timeout'u temizle
       clearTimeout(timeoutId);

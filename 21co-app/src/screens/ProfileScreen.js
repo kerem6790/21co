@@ -14,59 +14,33 @@ import { Ionicons } from '@expo/vector-icons';
 import { useDispatch } from 'react-redux';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../firebase/firebaseConfig';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 
 const ProfileScreen = ({ navigation }) => {
   const [profileImage, setProfileImage] = useState(require('../../assets/profile-placeholder.png'));
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [orderHistory, setOrderHistory] = useState([]);
   const dispatch = useDispatch();
-
-  // Dummy sipariş geçmişi verileri
-  const orderHistory = [
-    {
-      id: 'O100123',
-      date: '25 Mart 2025',
-      total: 140,
-      status: 'Teslim Edildi',
-      items: [
-        { name: 'Türk Kahvesi', quantity: 2, price: 45 },
-        { name: 'Latte', quantity: 1, price: 50 }
-      ]
-    },
-    {
-      id: 'O100122',
-      date: '22 Mart 2025',
-      total: 110,
-      status: 'Teslim Edildi',
-      items: [
-        { name: 'Espresso', quantity: 2, price: 35 },
-        { name: 'Americano', quantity: 1, price: 40 }
-      ]
-    },
-    {
-      id: 'O100118',
-      date: '18 Mart 2025',
-      total: 95,
-      status: 'Teslim Edildi',
-      items: [
-        { name: 'Türk Kahvesi', quantity: 1, price: 45 },
-        { name: 'Espresso', quantity: 1, price: 35 },
-        { name: 'Black Eye Kahve', quantity: 1, price: 15 }
-      ]
-    }
-  ];
 
   useEffect(() => {
     const fetchUserData = async () => {
       try {
+        setLoading(true);
         const currentUser = auth.currentUser;
         if (currentUser) {
+          // Kullanıcı bilgilerini getir
           const userDocRef = doc(db, "users", currentUser.uid);
           const userDoc = await getDoc(userDocRef);
           
           if (userDoc.exists()) {
-            setUserData(userDoc.data());
+            const userData = userDoc.data();
+            setUserData(userData);
+            
+            // Profil fotoğrafını ayarla (eğer varsa)
+            if (userData.profilePhoto) {
+              setProfileImage({ uri: userData.profilePhoto });
+            }
           } else {
             // Kullanıcı verisi bulunamadı, temel bilgileri auth'tan al
             setUserData({
@@ -74,6 +48,57 @@ const ProfileScreen = ({ navigation }) => {
               email: currentUser.email,
               phone: ''
             });
+          }
+          
+          // Sipariş geçmişini getir
+          try {
+            const ordersRef = collection(db, 'orders');
+            const q = query(
+              ordersRef, 
+              where('userId', '==', currentUser.uid),
+              orderBy('timestamp', 'desc')
+            );
+            
+            try {
+              const querySnapshot = await getDocs(q);
+              const orders = [];
+              
+              querySnapshot.forEach((doc) => {
+                const orderData = doc.data();
+                
+                // Firestore timestamp'i JavaScript tarihine dönüştür
+                let orderDate = "Tarih yok";
+                if (orderData.timestamp) {
+                  const date = orderData.timestamp.toDate();
+                  orderDate = date.toLocaleDateString('tr-TR', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                  });
+                }
+                
+                orders.push({
+                  id: orderData.displayOrderCode || doc.id,
+                  date: orderDate,
+                  total: orderData.totalPrice || 0,
+                  status: orderData.status || 'Beklemede',
+                  items: orderData.items || []
+                });
+              });
+              
+              setOrderHistory(orders);
+              console.log("Sipariş geçmişi yüklendi, sipariş sayısı:", orders.length);
+            } catch (permissionError) {
+              console.error("Sipariş geçmişi yüklenirken hata:", permissionError);
+              // Yetki hatası durumunda kullanıcıya bilgi mesajı göster
+              Alert.alert(
+                "Bilgi", 
+                "Sipariş geçmişinize erişim sırasında bir sorun oluştu. Lütfen daha sonra tekrar deneyin.",
+                [{ text: "Tamam" }]
+              );
+            }
+          } catch (orderError) {
+            console.error("Sipariş geçmişi işlemi sırasında hata:", orderError);
           }
         }
       } catch (error) {
@@ -89,9 +114,18 @@ const ProfileScreen = ({ navigation }) => {
   const handleLogout = async () => {
     try {
       setLoading(true);
+      
+      // Çıkış işlemi - navigasyon uygulamanın başka bir yerinde Firebase auth değişikliklerine
+      // tepki veren bir listener tarafından ele alınmalı
       await signOut(auth);
-      // Firebase oturum kapatma başarılı olduktan sonra
-      // navigation otomatik olarak giriş ekranına yönlendirecek
+      console.log("Çıkış işlemi başarılı");
+      
+      // Loading state'i temizle ve navigasyon yapmayı bırak
+      setLoading(false);
+      
+      // Not: Firebase Auth'daki değişiklik, uygulamanın başındaki bir Auth listener 
+      // tarafından algılanacak ve otomatik olarak Login ekranına yönlendirilecek
+      
     } catch (error) {
       Alert.alert('Çıkış Hatası', 'Çıkış yapılırken bir hata oluştu. Lütfen tekrar deneyin.');
       console.error("Çıkış hatası:", error);
@@ -116,7 +150,17 @@ const ProfileScreen = ({ navigation }) => {
     });
 
     if (!result.canceled) {
-      setProfileImage({ uri: result.assets[0].uri });
+      try {
+        const newImageUri = result.assets[0].uri;
+        setProfileImage({ uri: newImageUri });
+        
+        // Profil fotoğrafını Firestore'da güncellemek için burada ek işlemler yapılabilir
+        // Bu örnekte sadece yerel state'i güncelliyoruz
+        
+      } catch (error) {
+        console.error("Profil fotoğrafı güncellenirken hata:", error);
+        Alert.alert("Hata", "Profil fotoğrafı güncellenirken bir hata oluştu.");
+      }
     }
   };
 
@@ -164,7 +208,7 @@ const ProfileScreen = ({ navigation }) => {
     Alert.alert('Sepete Eklendi', 'Önceki siparişiniz sepete eklendi.', [
       {
         text: 'Sepete Git',
-        onPress: () => navigation.navigate('CartTab')
+        onPress: () => navigation.navigate('Main')
       },
       {
         text: 'Tamam',
@@ -205,53 +249,60 @@ const ProfileScreen = ({ navigation }) => {
               <Text style={styles.accountInfoValue}>{userData?.name || 'Kullanıcı'}</Text>
             </View>
             <View style={styles.accountInfoItem}>
-              <Text style={styles.accountInfoLabel}>Email:</Text>
+              <Text style={styles.accountInfoLabel}>E-posta:</Text>
               <Text style={styles.accountInfoValue}>{userData?.email || ''}</Text>
             </View>
             <View style={styles.accountInfoItem}>
               <Text style={styles.accountInfoLabel}>Telefon:</Text>
-              <Text style={styles.accountInfoValue}>{userData?.phone || '+90 5XX XXX XX XX'}</Text>
+              <Text style={styles.accountInfoValue}>{userData?.phone || 'Belirtilmemiş'}</Text>
             </View>
           </View>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Sipariş Geçmişi</Text>
-            {orderHistory.map((order) => (
-              <View key={order.id} style={styles.orderItem}>
-                <View style={styles.orderHeader}>
-                  <View>
-                    <Text style={styles.orderId}>Sipariş #{order.id}</Text>
-                    <Text style={styles.orderDate}>{order.date}</Text>
-                  </View>
-                  <View style={styles.orderStatusContainer}>
-                    <Text style={styles.orderStatus}>{order.status}</Text>
-                  </View>
-                </View>
-                
-                <View style={styles.orderDetails}>
-                  {order.items.map((item, index) => (
-                    <View key={index} style={styles.orderItemRow}>
-                      <Text style={styles.orderItemName}>
-                        {item.quantity}x {item.name}
-                      </Text>
-                      <Text style={styles.orderItemPrice}>{item.price * item.quantity} ₺</Text>
+            {orderHistory.length > 0 ? (
+              orderHistory.map((order) => (
+                <View key={order.id} style={styles.orderItem}>
+                  <View style={styles.orderHeader}>
+                    <View>
+                      <Text style={styles.orderId}>Sipariş #{order.id}</Text>
+                      <Text style={styles.orderDate}>{order.date}</Text>
                     </View>
-                  ))}
-                  <View style={styles.orderTotal}>
-                    <Text style={styles.orderTotalLabel}>Toplam:</Text>
-                    <Text style={styles.orderTotalValue}>{order.total} ₺</Text>
+                    <View style={styles.orderStatusContainer}>
+                      <Text style={styles.orderStatus}>{order.status}</Text>
+                    </View>
                   </View>
+                  
+                  <View style={styles.orderDetails}>
+                    {order.items.map((item, index) => (
+                      <View key={index} style={styles.orderItemRow}>
+                        <Text style={styles.orderItemName}>
+                          {item.quantity}x {item.name}
+                        </Text>
+                        <Text style={styles.orderItemPrice}>{item.price * item.quantity} ₺</Text>
+                      </View>
+                    ))}
+                    <View style={styles.orderTotal}>
+                      <Text style={styles.orderTotalLabel}>Toplam:</Text>
+                      <Text style={styles.orderTotalValue}>{order.total} ₺</Text>
+                    </View>
+                  </View>
+                  
+                  <TouchableOpacity 
+                    style={styles.reorderButton}
+                    onPress={() => handleReorder(order)}
+                  >
+                    <Ionicons name="refresh-outline" size={14} color="#FFFFFF" />
+                    <Text style={styles.reorderButtonText}> Tekrar Sipariş Ver</Text>
+                  </TouchableOpacity>
                 </View>
-                
-                <TouchableOpacity 
-                  style={styles.reorderButton}
-                  onPress={() => handleReorder(order)}
-                >
-                  <Ionicons name="refresh-outline" size={14} color="#FFFFFF" />
-                  <Text style={styles.reorderButtonText}> Tekrar Sipariş Ver</Text>
-                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.emptyOrdersContainer}>
+                <Ionicons name="cart-outline" size={50} color="#BCAAA4" />
+                <Text style={styles.emptyOrdersText}>Henüz sipariş vermediniz</Text>
               </View>
-            ))}
+            )}
           </View>
 
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -440,6 +491,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 50,
+  },
+  emptyOrdersContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+  },
+  emptyOrdersText: {
+    color: '#7F8C8D',
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: 10,
   },
 });
 
