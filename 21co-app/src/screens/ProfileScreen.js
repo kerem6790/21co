@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useDispatch } from 'react-redux';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../firebase/firebaseConfig';
-import { doc, getDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, orderBy, onSnapshot, updateDoc, Timestamp } from 'firebase/firestore';
 
 const ProfileScreen = ({ navigation }) => {
   const [profileImage, setProfileImage] = useState(require('../../assets/profile-placeholder.png'));
@@ -54,69 +54,83 @@ const ProfileScreen = ({ navigation }) => {
             });
           }
           
-          // Sipariş geçmişini getir
-          try {
-            const ordersRef = collection(db, 'orders');
-            const q = query(
-              ordersRef, 
-              where('userId', '==', currentUser.uid),
-              orderBy('timestamp', 'desc')
-            );
+          // Sipariş geçmişini gerçek zamanlı dinle
+          const ordersRef = collection(db, 'orders');
+          const q = query(
+            ordersRef, 
+            where('userId', '==', currentUser.uid),
+            orderBy('timestamp', 'desc')
+          );
+          
+          const unsubscribe = onSnapshot(q, (querySnapshot) => {
+            const orders = [];
+            const pending = [];
+            const completed = [];
             
-            try {
-              const querySnapshot = await getDocs(q);
-              const orders = [];
-              const pending = [];
-              const completed = [];
+            querySnapshot.forEach((doc) => {
+              const orderData = doc.data();
               
-              querySnapshot.forEach((doc) => {
-                const orderData = doc.data();
-                
-                // Firestore timestamp'i JavaScript tarihine dönüştür
-                let orderDate = "Tarih yok";
-                if (orderData.timestamp) {
-                  const date = orderData.timestamp.toDate();
-                  orderDate = date.toLocaleDateString('tr-TR', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric'
-                  });
-                }
-                
-                const orderItem = {
-                  id: orderData.displayOrderCode || doc.id,
-                  date: orderDate,
-                  total: orderData.totalPrice || 0,
-                  status: orderData.status || 'Beklemede',
-                  items: orderData.items || []
-                };
-                
-                orders.push(orderItem);
-                
-                // Siparişleri durumlarına göre ayır
-                if (orderData.status === 'pending') {
-                  pending.push(orderItem);
-                } else if (orderData.status === 'completed' || orderData.status === 'ready') {
-                  completed.push(orderItem);
-                }
-              });
+              // Firestore timestamp'i JavaScript tarihine dönüştür
+              let orderDate = "Tarih yok";
+              if (orderData.timestamp) {
+                const date = orderData.timestamp.toDate();
+                orderDate = date.toLocaleDateString('tr-TR', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+              }
               
-              setOrderHistory(orders);
-              setPendingOrders(pending);
-              setCompletedOrders(completed);
-              console.log("Sipariş geçmişi yüklendi, sipariş sayısı:", orders.length);
-            } catch (permissionError) {
-              console.error("Sipariş geçmişi yüklenirken hata:", permissionError);
-              // Yetki hatası durumunda kullanıcıya bilgi mesajı göster
-              Alert.alert(
-                "Bilgi", 
-                "Sipariş geçmişinize erişim sırasında bir sorun oluştu. Lütfen daha sonra tekrar deneyin.",
-                [{ text: "Tamam" }]
-              );
-            }
-          } catch (orderError) {
-            console.error("Sipariş geçmişi işlemi sırasında hata:", orderError);
-          }
+              const orderItem = {
+                id: doc.id,
+                displayId: orderData.displayOrderCode || doc.id,
+                date: orderDate,
+                total: orderData.totalPrice || 0,
+                status: orderData.status || 'pending',
+                items: orderData.items || [],
+                timestamp: orderData.timestamp
+              };
+              
+              orders.push(orderItem);
+              
+              // Siparişleri durumlarına göre ayır
+              if (orderData.status === 'pending' || orderData.status === 'ready') {
+                pending.push(orderItem);
+
+                // Eğer sipariş hazırsa ve 60 dakika geçmişse otomatik completed yap
+                if (orderData.status === 'ready' && orderData.readyTimestamp) {
+                  const readyTime = orderData.readyTimestamp.toDate();
+                  const now = new Date();
+                  const diffMinutes = (now - readyTime) / 1000 / 60;
+                  
+                  if (diffMinutes > 60 && !orderData.autoCompletePending) {
+                    updateDoc(doc.ref, {
+                      status: 'completed',
+                      completedAt: Timestamp.now(),
+                      autoCompleted: true,
+                      autoCompletePending: true
+                    }).then(() => {
+                      console.log(`Sipariş otomatik tamamlandı (60 dk): ${doc.id}`);
+                    }).catch(error => {
+                      console.error('Otomatik tamamlama hatası:', error);
+                    });
+                  }
+                }
+              } else if (orderData.status === 'completed') {
+                completed.push(orderItem);
+              }
+            });
+            
+            setOrderHistory(orders);
+            setPendingOrders(pending);
+            setCompletedOrders(completed);
+            console.log("Sipariş geçmişi yüklendi, sipariş sayısı:", orders.length);
+          });
+
+          // Component unmount olduğunda listener'ı temizle
+          return () => unsubscribe();
         }
       } catch (error) {
         console.error("Kullanıcı verisi alınamadı:", error);
@@ -234,6 +248,20 @@ const ProfileScreen = ({ navigation }) => {
     ]);
   };
 
+  const handlePickupOrder = async (orderId) => {
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      await updateDoc(orderRef, {
+        status: 'completed',
+        completedAt: Timestamp.now()
+      });
+      Alert.alert('Başarılı', 'Siparişinizi aldığınızı onayladınız.');
+    } catch (error) {
+      console.error('Sipariş durumu güncellenirken hata:', error);
+      Alert.alert('Hata', 'Sipariş durumu güncellenirken bir hata oluştu.');
+    }
+  };
+
   // Sipariş geçmişi görüntüleme fonksiyonu
   const toggleCompletedOrders = () => {
     setShowCompletedOrders(!showCompletedOrders);
@@ -241,29 +269,45 @@ const ProfileScreen = ({ navigation }) => {
 
   // Sipariş öğesi render fonksiyonu
   const renderOrderItem = ({ item }) => {
+    const isReady = item.status === 'ready';
+    const isPending = item.status === 'pending';
+    
     return (
       <View style={styles.orderItem}>
         <View style={styles.orderHeader}>
-          <Text style={styles.orderNumber}>Sipariş #{item.id}</Text>
+          <Text style={styles.orderNumber}>Sipariş #{item.displayId}</Text>
           <Text style={styles.orderDate}>{item.date}</Text>
         </View>
         <View style={styles.orderDetails}>
-          <Text style={styles.orderCode}>Sipariş Kodu: <Text style={styles.orderCodeValue}>{item.id}</Text></Text>
           <Text style={styles.orderTotal}>Toplam: {item.total} TL</Text>
-          <Text style={styles.orderStatus}>Durum: {
-            item.status === 'pending' ? 'Beklemede' : 
-            item.status === 'ready' ? 'Hazır' : 
-            item.status === 'cancelled' ? 'İptal Edildi' : 'Tamamlandı'
-          }</Text>
+          <View style={styles.statusContainer}>
+            <Text style={[
+              styles.orderStatus,
+              isReady && styles.readyStatus,
+              isPending && styles.pendingStatus
+            ]}>
+              Durum: {
+                item.status === 'pending' ? 'Hazırlanıyor' : 
+                item.status === 'ready' ? 'Hazır' :
+                item.status === 'cancelled' ? 'İptal Edildi' : 'Tamamlandı'
+              }
+            </Text>
+            {isReady && (
+              <View style={styles.readyBadge}>
+                <Ionicons name="checkmark-circle" size={20} color="#27AE60" />
+                <Text style={styles.readyText}>Siparişin hazır!</Text>
+              </View>
+            )}
+          </View>
+          {isReady && (
+            <TouchableOpacity 
+              style={styles.pickupButton}
+              onPress={() => handlePickupOrder(item.id)}
+            >
+              <Text style={styles.pickupButtonText}>Siparişimi Aldım</Text>
+            </TouchableOpacity>
+          )}
         </View>
-        {item.status === 'completed' && (
-          <TouchableOpacity 
-            style={styles.reorderButton}
-            onPress={() => handleReorder(item)}
-          >
-            <Text style={styles.reorderButtonText}>Tekrar Sipariş Ver</Text>
-          </TouchableOpacity>
-        )}
       </View>
     );
   };
@@ -310,7 +354,7 @@ const ProfileScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Aktif Siparişlerim</Text>
+            <Text style={styles.sectionTitle}>Siparişlerim</Text>
             {pendingOrders.length === 0 ? (
               <Text style={styles.emptyText}>Aktif siparişiniz bulunmuyor.</Text>
             ) : (
@@ -461,22 +505,37 @@ const styles = StyleSheet.create({
   orderDetails: {
     marginBottom: 8,
   },
-  orderCode: {
-    fontSize: 15,
-    marginBottom: 4,
-    color: '#2C3E50',
-  },
-  orderCodeValue: {
-    fontWeight: 'bold',
-    color: '#E67E22',
-  },
   orderTotal: {
     fontSize: 15,
     marginBottom: 4,
   },
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
   orderStatus: {
     fontSize: 15,
     color: '#2C3E50',
+  },
+  readyStatus: {
+    color: '#27AE60',
+    fontWeight: 'bold',
+  },
+  readyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F6EF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  readyText: {
+    color: '#27AE60',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   reorderButton: {
     backgroundColor: '#3498DB',
@@ -522,6 +581,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 50,
+  },
+  pendingStatus: {
+    color: '#F39C12',
+  },
+  pickupButton: {
+    backgroundColor: '#27AE60',
+    borderRadius: 4,
+    padding: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  pickupButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
   },
 });
 

@@ -137,6 +137,10 @@ const PaymentScreen = ({ navigation, route }) => {
         setLoading(false);
         return;
       }
+
+      // Kullanıcı bilgilerini Firestore'dan al
+      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      const userData = userDoc.data();
       
       // Sepet içeriğini kontrol et
       console.log("[SİPARİŞ] Sepet durumu:", cart.items.length > 0 ? `${cart.items.length} ürün var` : "Sepet boş");
@@ -165,6 +169,8 @@ const PaymentScreen = ({ navigation, route }) => {
       // Sipariş verisi oluştur
       const orderData = {
         userId: currentUser.uid,
+        userEmail: currentUser.email,
+        userName: userData?.name || 'İsimsiz Kullanıcı',
         orderCode: orderCodes.fullOrderCode,
         displayOrderCode: orderCodes.displayCode,
         items: cart.items,
@@ -179,6 +185,8 @@ const PaymentScreen = ({ navigation, route }) => {
       
       console.log("[SİPARİŞ] Sipariş verisi hazırlandı:", JSON.stringify({
         userId: orderData.userId,
+        userEmail: orderData.userEmail,
+        userName: orderData.userName,
         orderCode: orderData.orderCode,
         displayCode: orderData.displayOrderCode,
         itemCount: orderData.items.length,
@@ -211,24 +219,9 @@ const PaymentScreen = ({ navigation, route }) => {
         ]
       );
     } catch (error) {
-      console.error('[SİPARİŞ] Hata:', error.code, error.message);
+      console.error("[SİPARİŞ] Sipariş oluşturma hatası:", error);
       setLoading(false);
-      
-      let errorMessage = 'Ödeme işlemi sırasında bir hata oluştu.';
-      
-      if (error.code && error.code.includes('permission-denied')) {
-        errorMessage = 'Sipariş oluşturma izniniz yok. Lütfen giriş yapın ve tekrar deneyin.';
-      } else if (error.code && error.code.includes('unavailable')) {
-        errorMessage = 'Sunucu bağlantısı kurulamadı. İnternet bağlantınızı kontrol edin.';
-      } else if (error.code && error.code.includes('not-found')) {
-        errorMessage = 'Sipariş kaydedilirken sistem hatası oluştu. Lütfen daha sonra tekrar deneyin.';
-      }
-      
-      Alert.alert(
-        'Sipariş Hatası', 
-        errorMessage,
-        [{ text: 'Tamam', onPress: () => console.log('Hata alındı')}]
-      );
+      Alert.alert('Hata', 'Sipariş oluşturulurken bir hata oluştu. Lütfen tekrar deneyin.');
     }
   };
 

@@ -26,33 +26,57 @@ const store = configureStore({
         case 'ADD_TO_CART':
           const existingItem = state.items.find(item => item.id === action.payload.id);
           if (existingItem) {
-            existingItem.quantity += 1;
+            // Yeni bir items array'i oluştur
+            const updatedItems = state.items.map(item => {
+              if (item.id === action.payload.id) {
+                return { ...item, quantity: item.quantity + 1 };
+              }
+              return item;
+            });
+            
             return {
               ...state,
-              total: state.items.reduce((total, item) => total + (item.price * item.quantity), 0)
+              items: updatedItems,
+              total: updatedItems.reduce((total, item) => total + (item.price * item.quantity), 0)
             };
           }
+          
+          // Yeni ürün ekle
+          const newItem = { ...action.payload, quantity: 1 };
+          const newItems = [...state.items, newItem];
+          
           return {
             ...state,
-            items: [...state.items, { ...action.payload, quantity: 1 }],
-            total: state.items.reduce((total, item) => total + (item.price * item.quantity), 0) + action.payload.price
+            items: newItems,
+            total: newItems.reduce((total, item) => total + (item.price * item.quantity), 0)
           };
         
         case 'ADD_ITEM_WITH_QUANTITY':
           // Sipariş geçmişinden ürün ekleme (quantity bilgisi ile)
           const existingItemWithQuantity = state.items.find(item => item.id === action.payload.id);
           if (existingItemWithQuantity) {
-            existingItemWithQuantity.quantity += action.payload.quantity;
+            // Yeni bir items array'i oluştur
+            const updatedItems = state.items.map(item => {
+              if (item.id === action.payload.id) {
+                return { ...item, quantity: item.quantity + action.payload.quantity };
+              }
+              return item;
+            });
+            
             return {
               ...state,
-              total: state.items.reduce((total, item) => total + (item.price * item.quantity), 0)
+              items: updatedItems,
+              total: updatedItems.reduce((total, item) => total + (item.price * item.quantity), 0)
             };
           }
+          
+          // Yeni ürün ekle
+          const newItemsWithQuantity = [...state.items, action.payload];
+          
           return {
             ...state,
-            items: [...state.items, action.payload],
-            total: state.items.reduce((total, item) => total + (item.price * item.quantity), 0) + 
-                   (action.payload.price * action.payload.quantity)
+            items: newItemsWithQuantity,
+            total: newItemsWithQuantity.reduce((total, item) => total + (item.price * item.quantity), 0)
           };
         
         case 'REMOVE_FROM_CART':
@@ -93,7 +117,7 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 // Admin e-posta listesi - gerçek uygulamada Firestore'da saklanmalı
-const ADMIN_EMAILS = ['admin@example.com', 'osman@gmail.con'];
+const ADMIN_EMAILS = ['31@gmail.com', 'osman@gmail.con'];
 
 function TabNavigator() {
   // Kullanıcının admin olup olmadığını kontrol et
